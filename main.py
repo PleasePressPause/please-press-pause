@@ -1,9 +1,19 @@
 import argparse
 import asyncio
 import logging
+import os
 from datetime import datetime, timezone
 import dotenv
 from typing import Literal
+
+from mock_llm import (
+    get_mock_binary_prediction,
+    get_mock_numeric_prediction,
+    get_mock_multiple_choice_prediction,
+    get_mock_date_prediction,
+    get_mock_research,
+)
+from mock_questions import get_mock_binary_question, get_all_mock_questions
 
 
 from forecasting_tools import (
@@ -636,6 +646,46 @@ class SpringTemplateBot2026(ForecastBot):
         )
 
 
+class MockSpringTemplateBot(SpringTemplateBot2026):
+    """
+    A mock version of the bot that returns canned predictions without making LLM calls.
+    Used for testing the pipeline without incurring API costs.
+    """
+
+    async def run_research(self, question: MetaculusQuestion) -> str:
+        """Return mock research instead of calling LLM."""
+        logger.info(f"[MOCK] Generating mock research for: {question.question_text[:50]}...")
+        return get_mock_research()
+
+    async def _run_forecast_on_binary(
+        self, question: BinaryQuestion, research: str
+    ) -> ReasonedPrediction[float]:
+        """Return mock binary prediction."""
+        logger.info(f"[MOCK] Generating mock binary prediction for: {question.question_text[:50]}...")
+        return get_mock_binary_prediction()
+
+    async def _run_forecast_on_numeric(
+        self, question: NumericQuestion, research: str
+    ) -> ReasonedPrediction[NumericDistribution]:
+        """Return mock numeric prediction."""
+        logger.info(f"[MOCK] Generating mock numeric prediction for: {question.question_text[:50]}...")
+        return get_mock_numeric_prediction(question)
+
+    async def _run_forecast_on_multiple_choice(
+        self, question: MultipleChoiceQuestion, research: str
+    ) -> ReasonedPrediction[PredictedOptionList]:
+        """Return mock multiple choice prediction."""
+        logger.info(f"[MOCK] Generating mock MC prediction for: {question.question_text[:50]}...")
+        return get_mock_multiple_choice_prediction(question)
+
+    async def _run_forecast_on_date(
+        self, question: DateQuestion, research: str
+    ) -> ReasonedPrediction[NumericDistribution]:
+        """Return mock date prediction."""
+        logger.info(f"[MOCK] Generating mock date prediction for: {question.question_text[:50]}...")
+        return get_mock_date_prediction(question)
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
@@ -653,38 +703,95 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["tournament", "metaculus_cup", "test_questions"],
-        default="tournament",
-        help="Specify the run mode (default: tournament)",
+        choices=["tournament", "metaculus_cup", "test_questions", "offline"],
+        default="test_questions",
+        help="Specify the run mode (default: test_questions). Use 'offline' for fully offline testing with mock questions.",
+    )
+    parser.add_argument(
+        "--real",
+        action="store_true",
+        help="Use real LLM calls instead of mocks (costs money!)",
+    )
+    parser.add_argument(
+        "--publish",
+        action="store_true",
+        help="Publish forecasts to Metaculus (requires --real)",
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Use full prediction count (5) instead of minimal (1)",
+    )
+    parser.add_argument(
+        "--research",
+        action="store_true",
+        help="Enable research phase (in mock mode, uses mock research)",
     )
     args = parser.parse_args()
-    run_mode: Literal["tournament", "metaculus_cup", "test_questions"] = args.mode
+
+    # Check for USE_REAL_LLM environment variable
+    use_real_llm = args.real or os.getenv("USE_REAL_LLM", "").lower() in ("true", "1", "yes")
+    use_publish = args.publish or os.getenv("PUBLISH_TO_METACULUS", "").lower() in ("true", "1", "yes")
+    use_full = args.full or os.getenv("FULL_PREDICTIONS", "").lower() in ("true", "1", "yes")
+    use_research = args.research or os.getenv("ENABLE_RESEARCH", "").lower() in ("true", "1", "yes")
+
+    # Safety check: can't publish without real LLM
+    if use_publish and not use_real_llm:
+        logger.warning("--publish requires --real. Disabling publish.")
+        use_publish = False
+
+    # Log the configuration
+    mode_str = "REAL" if use_real_llm else "MOCK"
+    publish_str = "YES" if use_publish else "NO"
+    predictions = 5 if use_full else 1
+    research_str = "YES" if use_research else "NO"
+    logger.info(f"Configuration: mode={mode_str}, publish={publish_str}, predictions={predictions}, research={research_str}")
+
+    run_mode: Literal["tournament", "metaculus_cup", "test_questions", "offline"] = args.mode
     assert run_mode in [
         "tournament",
         "metaculus_cup",
         "test_questions",
+        "offline",
     ], "Invalid run mode"
 
-    template_bot = SpringTemplateBot2026(
-        research_reports_per_question=1,
-        predictions_per_research_report=5,
-        use_research_summary_to_forecast=False,
-        publish_reports_to_metaculus=True,
-        folder_to_save_reports_to=None,
-        skip_previously_forecasted_questions=True,
-        extra_metadata_in_explanation=True,
-        # llms={  # choose your model names or GeneralLlm llms here, otherwise defaults will be chosen for you
-        #     "default": GeneralLlm(
-        #         model="openrouter/openai/gpt-4o", # "anthropic/claude-sonnet-4-20250514", etc (see docs for litellm)
-        #         temperature=0.3,
-        #         timeout=40,
-        #         allowed_tries=2,
-        #     ),
-        #     "summarizer": "openai/gpt-4o-mini",
-        #     "researcher": "asknews/news-summaries",
-        #     "parser": "openai/gpt-4o-mini",
-        # },
-    )
+    # Configure bot based on mode
+    if use_real_llm:
+        # Real mode: use actual LLMs (minimal cost config unless --full)
+        llm_config = {
+            "default": GeneralLlm(
+                model="openrouter/openai/gpt-4o-mini",  # Cheaper model for testing
+                temperature=0.3,
+                timeout=40,
+                allowed_tries=2,
+            ),
+            "summarizer": "openai/gpt-4o-mini",
+            "researcher": "asknews/news-summaries" if use_research else "no_research",
+            "parser": "openai/gpt-4o-mini",
+        }
+        logger.info("Using REAL LLMs (this will cost money!)")
+        template_bot = SpringTemplateBot2026(
+            research_reports_per_question=1,
+            predictions_per_research_report=predictions,
+            use_research_summary_to_forecast=False,
+            publish_reports_to_metaculus=use_publish,
+            folder_to_save_reports_to=None,
+            skip_previously_forecasted_questions=True,
+            extra_metadata_in_explanation=True,
+            llms=llm_config,
+        )
+    else:
+        # Mock mode: use MockSpringTemplateBot (no API calls, no cost)
+        logger.info("Using MOCK bot (no LLM API calls, no cost)")
+        template_bot = MockSpringTemplateBot(
+            research_reports_per_question=1,
+            predictions_per_research_report=predictions,
+            use_research_summary_to_forecast=False,
+            publish_reports_to_metaculus=False,  # Never publish in mock mode
+            folder_to_save_reports_to=None,
+            skip_previously_forecasted_questions=False,  # Always forecast in mock mode
+            extra_metadata_in_explanation=True,
+        )
 
     client = MetaculusClient()
     if run_mode == "tournament":
@@ -710,18 +817,49 @@ if __name__ == "__main__":
             )
         )
     elif run_mode == "test_questions":
-        # Example questions are a good way to test the bot's performance on a single question
-        EXAMPLE_QUESTIONS = [
+        # Example questions for testing - by default only use 1 to minimize cost
+        ALL_EXAMPLE_QUESTIONS = [
             "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # Human Extinction - Binary
             "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # Age of Oldest Human - Numeric
             "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # Number of New Leading AI Labs - Multiple Choice
             "https://www.metaculus.com/c/diffusion-community/38880/how-many-us-labor-strikes-due-to-ai-in-2029/",  # Number of US Labor Strikes Due to AI in 2029 - Discrete
         ]
+        # Use only first question unless --full is specified
+        EXAMPLE_QUESTIONS = ALL_EXAMPLE_QUESTIONS if use_full else ALL_EXAMPLE_QUESTIONS[:1]
+        logger.info(f"Testing with {len(EXAMPLE_QUESTIONS)} question(s)")
         template_bot.skip_previously_forecasted_questions = False
         questions = [
             client.get_question_by_url(question_url)
             for question_url in EXAMPLE_QUESTIONS
         ]
+        forecast_reports = asyncio.run(
+            template_bot.forecast_questions(questions, return_exceptions=True)
+        )
+    elif run_mode == "offline":
+        # Fully offline mode: no network calls at all
+        logger.info("Running in OFFLINE mode with mock questions")
+        if use_real_llm:
+            logger.warning("--real flag ignored in offline mode (mock bot always used)")
+        # In offline mode, we always use the mock bot (already configured above if not use_real_llm)
+        # If real mode was requested, create a mock bot now
+        if use_real_llm:
+            template_bot = MockSpringTemplateBot(
+                research_reports_per_question=1,
+                predictions_per_research_report=predictions,
+                use_research_summary_to_forecast=False,
+                publish_reports_to_metaculus=False,
+                folder_to_save_reports_to=None,
+                skip_previously_forecasted_questions=False,
+                extra_metadata_in_explanation=True,
+            )
+
+        # Use mock questions
+        if use_full:
+            questions = get_all_mock_questions()
+        else:
+            questions = [get_mock_binary_question()]
+        logger.info(f"Testing with {len(questions)} mock question(s)")
+
         forecast_reports = asyncio.run(
             template_bot.forecast_questions(questions, return_exceptions=True)
         )
