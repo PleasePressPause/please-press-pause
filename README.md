@@ -190,3 +190,4 @@ Below are some ideas for making a novel bot.
 - Search provider benchmark: Run bots using different combinations of search providers (e.g. Google, Bing, Exa.ai, Tavily, AskNews, Perplexity, etc) and search filters (e.g. only recent data, sites with a certain search rank, etc) and see if any specific one is better than others, or if using multiple of them makes a difference.
 - Timeline researcher: Make a tool that can take a niche topic and make a timeline for all major and minor events relevant to that topic.
 - Research Tools: Utilize the ComputerUse and DataAnalyzer tool from forecasting-tools for advanced analysis and to find/analyze datasets.
+# Test
