@@ -1,6 +1,6 @@
 # Integrations
 
-This folder contains example scripts that integrate third-party tools and SDKs with the Metaculus forecasting bot template.
+This folder contains example scripts that integrate third-party tools and SDKs with the forecasting bot.
 
 ## Install
 
