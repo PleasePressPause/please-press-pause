@@ -14,6 +14,14 @@ from mock_llm import (
     get_mock_research,
 )
 from mock_questions import get_mock_binary_question, get_all_mock_questions
+from permutation import (
+    Permutation,
+    permute_options,
+    unpermute_predictions,
+    get_standard_permutations,
+    average_predictions,
+    run_with_permutations,
+)
 
 
 from forecasting_tools import (

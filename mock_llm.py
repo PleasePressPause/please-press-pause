@@ -188,3 +188,54 @@ def get_mock_llms_with_research() -> dict:
         "researcher": "mock/researcher",
         "parser": "mock/parser",
     }
+
+
+def get_alphabetical_mock_prediction(question: MultipleChoiceQuestion) -> ReasonedPrediction[PredictedOptionList]:
+    """
+    Return a mock multiple choice prediction based on alphabetical order of option names.
+
+    This assigns probabilities deterministically by option name (not position):
+    - First alphabetically: ~40%
+    - Second alphabetically: ~30%
+    - Third alphabetically: ~20%
+    - Fourth alphabetically: ~10%
+
+    This is useful for testing permutation logic - the same option should get
+    the same probability regardless of presentation order.
+    """
+    options = question.options
+    n = len(options)
+
+    # Sort options alphabetically to determine their "rank"
+    sorted_options = sorted(options)
+    rank = {opt: i for i, opt in enumerate(sorted_options)}
+
+    # Base probabilities (for first 4 options by alphabetical rank)
+    base_probs = [0.40, 0.30, 0.20, 0.10]
+
+    if n <= 4:
+        # Use first n probabilities, normalized
+        probs = base_probs[:n]
+        total = sum(probs)
+        probs = [p / total for p in probs]
+    else:
+        # First 4 get base probs, rest split the remaining
+        remaining = 0.10
+        each_remaining = remaining / (n - 4)
+        probs = base_probs + [each_remaining] * (n - 4)
+        total = sum(probs)
+        probs = [p / total for p in probs]
+
+    # Create predictions - assign prob based on alphabetical rank
+    predicted_options = []
+    for opt in options:  # Keep original order
+        r = rank[opt]
+        prob = probs[r] if r < len(probs) else probs[-1]
+        predicted_options.append(PredictedOption(option_name=opt, probability=prob))
+
+    reasoning = f"Mock prediction based on alphabetical order. Sorted: {sorted_options}"
+
+    return ReasonedPrediction(
+        prediction_value=PredictedOptionList(predicted_options=predicted_options),
+        reasoning=reasoning
+    )
