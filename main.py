@@ -18,8 +18,9 @@ from permutation import (
     Permutation,
     permute_options,
     unpermute_predictions,
-    generate_diverse_permutations,
-    detect_ordered_options,
+    get_standard_permutations,
+    average_predictions,
+    run_with_permutations,
 )
 
 
@@ -690,95 +691,6 @@ class MockSpringTemplateBot(SpringTemplateBot2026):
     ) -> ReasonedPrediction[NumericDistribution]:
         """Return mock date prediction."""
         logger.info(f"[MOCK] Generating mock date prediction for: {question.question_text[:50]}...")
-        return get_mock_date_prediction(question)
-
-
-class AlphabeticalMockBot(SpringTemplateBot2026):
-    """
-    A mock bot that assigns probabilities based on alphabetical order of option names.
-
-    This is useful for testing permutation logic - the bot will assign consistent
-    probabilities to each option regardless of the order they're presented in.
-    For example, if options are ["Delta", "Alpha", "Gamma", "Beta"], it will assign:
-    - Alpha: 40% (first alphabetically)
-    - Beta: 30% (second alphabetically)
-    - Delta: 15% (third alphabetically)
-    - Gamma: 15% (fourth alphabetically)
-
-    This deterministic behavior allows us to verify that permutation and unpermutation
-    work correctly - the same option should get the same probability regardless of
-    presentation order.
-    """
-
-    async def run_research(self, question: MetaculusQuestion) -> str:
-        """Return mock research."""
-        return get_mock_research()
-
-    async def _run_forecast_on_binary(
-        self, question: BinaryQuestion, research: str
-    ) -> ReasonedPrediction[float]:
-        """Return mock binary prediction."""
-        return get_mock_binary_prediction()
-
-    async def _run_forecast_on_multiple_choice(
-        self, question: MultipleChoiceQuestion, research: str
-    ) -> ReasonedPrediction[PredictedOptionList]:
-        """
-        Assign probabilities based on alphabetical order of option names.
-
-        The options are sorted alphabetically, and probabilities are assigned
-        in decreasing order: 40%, 30%, 20%, 10% for 4 options.
-        For more options, the remaining probability is split evenly.
-        """
-        from forecasting_tools import PredictedOption
-
-        options = question.options
-        n = len(options)
-
-        # Sort options alphabetically to determine their "rank"
-        sorted_options = sorted(options)
-        rank = {opt: i for i, opt in enumerate(sorted_options)}
-
-        # Base probabilities (for first 4 options by alphabetical rank)
-        base_probs = [0.40, 0.30, 0.20, 0.10]
-
-        if n <= 4:
-            # Use first n probabilities, normalized
-            probs = base_probs[:n]
-            total = sum(probs)
-            probs = [p / total for p in probs]
-        else:
-            # First 4 get base probs, rest split the remaining
-            remaining = 0.10
-            each_remaining = remaining / (n - 4)
-            probs = base_probs + [each_remaining] * (n - 4)
-            total = sum(probs)
-            probs = [p / total for p in probs]
-
-        # Create predictions - assign prob based on alphabetical rank
-        predicted_options = []
-        for opt in options:  # Keep original order
-            r = rank[opt]
-            prob = probs[r] if r < len(probs) else probs[-1]
-            predicted_options.append(PredictedOption(option_name=opt, probability=prob))
-
-        reasoning = f"Mock prediction based on alphabetical order. Sorted: {sorted_options}"
-
-        return ReasonedPrediction(
-            prediction_value=PredictedOptionList(predicted_options=predicted_options),
-            reasoning=reasoning
-        )
-
-    async def _run_forecast_on_numeric(
-        self, question: NumericQuestion, research: str
-    ) -> ReasonedPrediction[NumericDistribution]:
-        """Return mock numeric prediction."""
-        return get_mock_numeric_prediction(question)
-
-    async def _run_forecast_on_date(
-        self, question: DateQuestion, research: str
-    ) -> ReasonedPrediction[NumericDistribution]:
-        """Return mock date prediction."""
         return get_mock_date_prediction(question)
 
 
