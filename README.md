@@ -35,7 +35,6 @@ async def my_predict(options: list[str]) -> PredictedOptionList:
 averaged, log = await run_with_permutations(
     my_predict,
     original_options=["Option A", "Option B", "Option C"],
-    num_permutations=5
 )
 ```
 
