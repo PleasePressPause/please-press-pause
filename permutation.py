@@ -52,33 +52,55 @@ class Permutation:
         return f"Permutation({self.forward})"
 
 
-def get_standard_permutations(n: int) -> list[Permutation]:
+class PermutationSets:
     """
-    Get a fixed set of standard permutations for n options.
+    Factory class for generating standard sets of permutations.
 
-    These are carefully chosen permutation sets that:
-    - Include identity for baseline
-    - Include reversal
-    - For n>=3, include at least one non-self-inverse permutation
-
-    Args:
-        n: Number of options
-
-    Returns:
-        List of Permutation objects
+    Provides fixed permutation sets designed to reduce position bias
+    in multiple choice predictions.
     """
-    if n < 2:
-        return [Permutation.from_forward(list(range(n)))]
 
-    if n == 2:
-        # Identity and reversal
+    @staticmethod
+    def for_size(n: int) -> list[Permutation]:
+        """
+        Get a fixed set of standard permutations for n options.
+
+        These are carefully chosen permutation sets that:
+        - Include identity for baseline
+        - Include reversal
+        - For n>=3, include at least one non-self-inverse permutation
+
+        Args:
+            n: Number of options
+
+        Returns:
+            List of Permutation objects
+        """
+        if n < 2:
+            return [Permutation.from_forward(list(range(n)))]
+
+        if n == 2:
+            return PermutationSets._for_2()
+
+        if n == 3:
+            return PermutationSets._for_3()
+
+        if n == 4:
+            return PermutationSets._for_4()
+
+        return PermutationSets._for_n(n)
+
+    @staticmethod
+    def _for_2() -> list[Permutation]:
+        """Identity and reversal for 2 options."""
         return [
             Permutation.from_forward([0, 1]),  # identity
             Permutation.from_forward([1, 0]),  # reversal
         ]
 
-    if n == 3:
-        # All 6 permutations of 3 elements
+    @staticmethod
+    def _for_3() -> list[Permutation]:
+        """All 6 permutations for 3 options."""
         return [
             Permutation.from_forward([0, 1, 2]),  # identity
             Permutation.from_forward([2, 1, 0]),  # reversal
@@ -88,9 +110,14 @@ def get_standard_permutations(n: int) -> list[Permutation]:
             Permutation.from_forward([1, 0, 2]),  # swap 0,1
         ]
 
-    if n == 4:
-        # Fixed set as specified: (1,2,3,4), (2,4,1,3), (3,1,4,2), (4,3,2,1)
-        # Converting to 0-indexed: (0,1,2,3), (1,3,0,2), (2,0,3,1), (3,2,1,0)
+    @staticmethod
+    def _for_4() -> list[Permutation]:
+        """
+        Fixed set for 4 options.
+
+        Uses: (1,2,3,4), (2,4,1,3), (3,1,4,2), (4,3,2,1) in 1-indexed
+        Which is: (0,1,2,3), (1,3,0,2), (2,0,3,1), (3,2,1,0) in 0-indexed
+        """
         return [
             Permutation.from_forward([0, 1, 2, 3]),  # identity
             Permutation.from_forward([1, 3, 0, 2]),  # not self-inverse
@@ -98,17 +125,21 @@ def get_standard_permutations(n: int) -> list[Permutation]:
             Permutation.from_forward([3, 2, 1, 0]),  # reversal
         ]
 
-    # For n > 4, use identity, reversal, and rotations
-    perms = [
-        Permutation.from_forward(list(range(n))),  # identity
-        Permutation.from_forward(list(range(n - 1, -1, -1))),  # reversal
-    ]
-    # Add rotation by 1 (not self-inverse for n > 2)
-    perms.append(Permutation.from_forward([(i + 1) % n for i in range(n)]))
-    # Add rotation by n//2
-    perms.append(Permutation.from_forward([(i + n // 2) % n for i in range(n)]))
+    @staticmethod
+    def _for_n(n: int) -> list[Permutation]:
+        """Identity, reversal, and rotations for n > 4 options."""
+        return [
+            Permutation.from_forward(list(range(n))),  # identity
+            Permutation.from_forward(list(range(n - 1, -1, -1))),  # reversal
+            Permutation.from_forward([(i + 1) % n for i in range(n)]),  # rotation by 1
+            Permutation.from_forward([(i + n // 2) % n for i in range(n)]),  # rotation by n//2
+        ]
 
-    return perms
+
+# Convenience function for backwards compatibility
+def get_standard_permutations(n: int) -> list[Permutation]:
+    """Get standard permutations for n options. See PermutationSets.for_size()."""
+    return PermutationSets.for_size(n)
 
 
 def permute_options(options: list[str], permutation: Permutation) -> list[str]:

@@ -7,6 +7,7 @@ from forecasting_tools import PredictedOption, PredictedOptionList, MultipleChoi
 
 from permutation import (
     Permutation,
+    PermutationSets,
     permute_options,
     unpermute_predictions,
     get_standard_permutations,
@@ -86,25 +87,25 @@ class TestPermutation:
         assert twice != items  # Applying twice doesn't give identity
 
 
-class TestGetStandardPermutations:
-    """Tests for get_standard_permutations function."""
+class TestPermutationSets:
+    """Tests for PermutationSets class."""
 
-    def test_n_equals_1(self):
+    def test_for_size_n_equals_1(self):
         """Single option should return identity."""
-        perms = get_standard_permutations(1)
+        perms = PermutationSets.for_size(1)
         assert len(perms) == 1
         assert perms[0].forward == [0]
 
-    def test_n_equals_2(self):
+    def test_for_size_n_equals_2(self):
         """Two options should return identity and reversal."""
-        perms = get_standard_permutations(2)
+        perms = PermutationSets.for_size(2)
         assert len(perms) == 2
         assert perms[0].forward == [0, 1]  # identity
         assert perms[1].forward == [1, 0]  # reversal
 
-    def test_n_equals_3(self):
+    def test_for_size_n_equals_3(self):
         """Three options should return all 6 permutations."""
-        perms = get_standard_permutations(3)
+        perms = PermutationSets.for_size(3)
         assert len(perms) == 6
 
         # Should include identity first
@@ -121,9 +122,9 @@ class TestGetStandardPermutations:
         forwards = [tuple(p.forward) for p in perms]
         assert len(set(forwards)) == 6
 
-    def test_n_equals_4(self):
+    def test_for_size_n_equals_4(self):
         """Four options should return the specified fixed set."""
-        perms = get_standard_permutations(4)
+        perms = PermutationSets.for_size(4)
         assert len(perms) == 4
 
         # Check specific permutations as specified by reviewer
@@ -142,9 +143,9 @@ class TestGetStandardPermutations:
         non_self_inverse = [p for p in perms if not p.is_self_inverse()]
         assert len(non_self_inverse) >= 1
 
-    def test_n_greater_than_4(self):
+    def test_for_size_n_greater_than_4(self):
         """n > 4 should return identity, reversal, and rotations."""
-        perms = get_standard_permutations(5)
+        perms = PermutationSets.for_size(5)
         assert len(perms) == 4
 
         # First should be identity
@@ -156,6 +157,15 @@ class TestGetStandardPermutations:
         # Should include rotations (non-self-inverse)
         non_self_inverse = [p for p in perms if not p.is_self_inverse()]
         assert len(non_self_inverse) >= 1
+
+    def test_convenience_function_matches_class(self):
+        """get_standard_permutations should match PermutationSets.for_size."""
+        for n in [1, 2, 3, 4, 5]:
+            from_function = get_standard_permutations(n)
+            from_class = PermutationSets.for_size(n)
+            assert len(from_function) == len(from_class)
+            for i in range(len(from_function)):
+                assert from_function[i].forward == from_class[i].forward
 
 
 class TestPermuteOptions:
@@ -344,7 +354,7 @@ class TestEndToEndPermutation:
         original_options = ['Trump', 'Biden', 'Other', 'Neither']
 
         # Get standard permutations for 4 options
-        perms = get_standard_permutations(4)
+        perms = PermutationSets.for_size(4)
 
         # Simulate predictions with different orderings
         all_predictions = []
