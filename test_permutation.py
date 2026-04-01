@@ -576,5 +576,178 @@ class TestPermutationWorkflow:
             assert probs_unpermuted[opt] == pytest.approx(probs_orig[opt], rel=0.01)
 
 
+class TestIntegrationPermutationWorkflow:
+    """
+    Integration tests for the complete permutation workflow.
+
+    These tests verify that:
+    - The correct number of prediction calls are made for each n
+    - The final averaged result is correct
+    - The workflow handles different option counts correctly
+    """
+
+    @pytest.mark.asyncio
+    async def test_three_options_six_calls(self):
+        """For 3 options, should make 6 prediction calls (all permutations)."""
+        original_options = ["Red", "Blue", "Green"]
+        call_count = 0
+        options_seen = []
+
+        async def tracking_predict(options: list[str]) -> PredictedOptionList:
+            nonlocal call_count
+            call_count += 1
+            options_seen.append(options.copy())
+
+            # Use alphabetical mock logic inline
+            sorted_opts = sorted(options)
+            rank = {opt: i for i, opt in enumerate(sorted_opts)}
+            base_probs = [0.40, 0.30, 0.20]
+            total = sum(base_probs)
+            probs = [p / total for p in base_probs]
+
+            return PredictedOptionList(predicted_options=[
+                PredictedOption(option_name=opt, probability=probs[rank[opt]])
+                for opt in options
+            ])
+
+        result, log = await run_with_permutations(
+            tracking_predict,
+            original_options,
+        )
+
+        # Should make exactly 6 calls (all permutations of 3)
+        assert call_count == 6
+        assert len(log) == 6
+
+        # All 6 orderings should be unique
+        unique_orderings = set(tuple(opts) for opts in options_seen)
+        assert len(unique_orderings) == 6
+
+        # Result should be in original order
+        names = [p.option_name for p in result.predicted_options]
+        assert names == original_options
+
+        # Since alphabetical mock assigns by name (not position),
+        # all permutations give same probabilities, so average equals single run
+        # Blue (rank 0) -> 0.40/0.90 ≈ 0.444
+        # Green (rank 1) -> 0.30/0.90 ≈ 0.333
+        # Red (rank 2) -> 0.20/0.90 ≈ 0.222
+        probs = {p.option_name: p.probability for p in result.predicted_options}
+        assert probs['Blue'] == pytest.approx(0.444, rel=0.01)
+        assert probs['Green'] == pytest.approx(0.333, rel=0.01)
+        assert probs['Red'] == pytest.approx(0.222, rel=0.01)
+
+    @pytest.mark.asyncio
+    async def test_four_options_four_calls(self):
+        """For 4 options, should make 4 prediction calls (fixed set)."""
+        original_options = ["Alpha", "Beta", "Gamma", "Delta"]
+        call_count = 0
+
+        async def counting_predict(options: list[str]) -> PredictedOptionList:
+            nonlocal call_count
+            call_count += 1
+
+            # Alphabetical mock logic
+            sorted_opts = sorted(options)
+            rank = {opt: i for i, opt in enumerate(sorted_opts)}
+            probs = [0.40, 0.30, 0.20, 0.10]
+
+            return PredictedOptionList(predicted_options=[
+                PredictedOption(option_name=opt, probability=probs[rank[opt]])
+                for opt in options
+            ])
+
+        result, log = await run_with_permutations(
+            counting_predict,
+            original_options,
+        )
+
+        # Should make exactly 4 calls (fixed set for n=4)
+        assert call_count == 4
+        assert len(log) == 4
+
+        # Verify expected probabilities (alphabetically: Alpha, Beta, Delta, Gamma)
+        probs = {p.option_name: p.probability for p in result.predicted_options}
+        assert probs['Alpha'] == pytest.approx(0.40, rel=0.01)
+        assert probs['Beta'] == pytest.approx(0.30, rel=0.01)
+        assert probs['Delta'] == pytest.approx(0.20, rel=0.01)
+        assert probs['Gamma'] == pytest.approx(0.10, rel=0.01)
+
+    @pytest.mark.asyncio
+    async def test_two_options_two_calls(self):
+        """For 2 options, should make 2 prediction calls (identity + reversal)."""
+        original_options = ["Yes", "No"]
+        call_count = 0
+        options_seen = []
+
+        async def tracking_predict(options: list[str]) -> PredictedOptionList:
+            nonlocal call_count
+            call_count += 1
+            options_seen.append(options.copy())
+
+            # Alphabetical: No, Yes -> No gets 0.571, Yes gets 0.429
+            sorted_opts = sorted(options)
+            rank = {opt: i for i, opt in enumerate(sorted_opts)}
+            base_probs = [0.40, 0.30]
+            total = sum(base_probs)
+            probs = [p / total for p in base_probs]
+
+            return PredictedOptionList(predicted_options=[
+                PredictedOption(option_name=opt, probability=probs[rank[opt]])
+                for opt in options
+            ])
+
+        result, log = await run_with_permutations(
+            tracking_predict,
+            original_options,
+        )
+
+        # Should make exactly 2 calls
+        assert call_count == 2
+        assert len(log) == 2
+
+        # Should see both orderings
+        assert ["Yes", "No"] in options_seen
+        assert ["No", "Yes"] in options_seen
+
+        # Verify expected probabilities
+        probs = {p.option_name: p.probability for p in result.predicted_options}
+        assert probs['No'] == pytest.approx(0.571, rel=0.01)
+        assert probs['Yes'] == pytest.approx(0.429, rel=0.01)
+
+    @pytest.mark.asyncio
+    async def test_position_bias_correction(self):
+        """
+        Test that permutation averaging corrects for position bias.
+
+        Uses a predictor with strong position bias (first option always gets 80%)
+        and verifies that averaging across permutations balances the probabilities.
+        """
+        original_options = ["A", "B", "C"]
+
+        async def biased_predict(options: list[str]) -> PredictedOptionList:
+            # Strong position bias: first option gets 80%
+            probs = [0.80, 0.15, 0.05]
+            return PredictedOptionList(predicted_options=[
+                PredictedOption(option_name=opt, probability=probs[i])
+                for i, opt in enumerate(options)
+            ])
+
+        result, log = await run_with_permutations(
+            biased_predict,
+            original_options,
+        )
+
+        # With 6 permutations and position bias:
+        # Each option appears in each position twice
+        # So each option gets: (0.80 + 0.80 + 0.15 + 0.15 + 0.05 + 0.05) / 6 = 0.333
+        probs = {p.option_name: p.probability for p in result.predicted_options}
+
+        # All options should be approximately equal after averaging
+        assert probs['A'] == pytest.approx(0.333, rel=0.02)
+        assert probs['B'] == pytest.approx(0.333, rel=0.02)
+        assert probs['C'] == pytest.approx(0.333, rel=0.02)
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
