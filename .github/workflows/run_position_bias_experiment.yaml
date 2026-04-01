@@ -1,0 +1,59 @@
+name: Position Bias Experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      reps:
+        description: 'Repetitions per ordering'
+        required: false
+        default: '5'
+      model:
+        description: 'LLM model name'
+        required: false
+        default: 'openrouter/openai/gpt-4o-mini'
+      temperature:
+        description: 'LLM temperature'
+        required: false
+        default: '0.3'
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+      - name: Run position bias experiment
+        run: |
+          poetry run python experiment_position_bias.py \
+            --reps ${{ github.event.inputs.reps }} \
+            --model "${{ github.event.inputs.model }}" \
+            --temperature ${{ github.event.inputs.temperature }}
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
+          ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
+      - name: Upload experiment results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: experiment-results
+          path: experiment_data/
+          retention-days: 90
