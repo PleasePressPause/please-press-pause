@@ -243,7 +243,7 @@ async def main():
     parser.add_argument("--append-to", help="Path to existing results JSON (append more reps)")
     parser.add_argument("--reps", type=int, default=5, help="Repetitions per ordering (default: 5)")
     parser.add_argument("--model", default="openrouter/openai/gpt-4o-mini", help="LLM model name")
-    parser.add_argument("--temperature", type=float, default=0.3, help="LLM temperature")
+    parser.add_argument("--temperature", type=float, default=0.1, help="LLM temperature")
     parser.add_argument("--output-dir", default="experiment_data", help="Output directory")
     parser.add_argument("--offline", action="store_true", help="Use mock question + mock predictions (no API calls)")
     args = parser.parse_args()

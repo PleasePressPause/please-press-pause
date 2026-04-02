@@ -3,18 +3,26 @@ name: Position Bias Experiment
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: 'Run mode'
+        required: false
+        default: 'offline'
+        type: choice
+        options:
+          - offline
+          - real
       reps:
         description: 'Repetitions per ordering'
         required: false
         default: '5'
       model:
-        description: 'LLM model name'
+        description: 'LLM model name (ignored in offline mode)'
         required: false
         default: 'openrouter/openai/gpt-4o-mini'
       temperature:
         description: 'LLM temperature'
         required: false
-        default: '0.3'
+        default: '0.1'
 
 concurrency:
   group: ${{ github.workflow }}
@@ -37,9 +45,23 @@ jobs:
           installer-parallel: true
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
+
+      - name: Restore cached experiment data
+        uses: actions/cache/restore@v4
+        with:
+          path: experiment_data/
+          key: experiment-data-${{ github.run_id }}
+          restore-keys: |
+            experiment-data-
+
       - name: Run position bias experiment
         run: |
+          OFFLINE_FLAG=""
+          if [ "${{ github.event.inputs.mode }}" = "offline" ]; then
+            OFFLINE_FLAG="--offline"
+          fi
           poetry run python experiment_position_bias.py \
+            $OFFLINE_FLAG \
             --reps ${{ github.event.inputs.reps }} \
             --model "${{ github.event.inputs.model }}" \
             --temperature ${{ github.event.inputs.temperature }}
@@ -50,6 +72,14 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
           ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
+
+      - name: Save experiment data cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: experiment_data/
+          key: experiment-data-${{ github.run_id }}
+
       - name: Upload experiment results
         uses: actions/upload-artifact@v4
         if: always()
