@@ -51,17 +51,17 @@ DEFAULT_QUESTION_URL = "https://www.metaculus.com/questions/34484/us-congress-co
 
 # --- I/O helpers ---
 
-def find_existing_research(question_id: int, output_dir: str) -> str | None:
-    """Find an existing research file for the given question ID."""
-    filepath = os.path.join(output_dir, f"research_{question_id}.json")
+def find_existing_research(question_id: int, mode: str, output_dir: str) -> str | None:
+    """Find an existing research file for the given question ID and mode."""
+    filepath = os.path.join(output_dir, f"research_{question_id}_{mode}.json")
     if os.path.exists(filepath):
         return filepath
     return None
 
 
-def save_research(question: MultipleChoiceQuestion, research: str, researcher_config: str, output_dir: str) -> str:
+def save_research(question: MultipleChoiceQuestion, research: str, researcher_config: str, mode: str, output_dir: str) -> str:
     os.makedirs(output_dir, exist_ok=True)
-    filename = f"research_{question.id_of_post}.json"
+    filename = f"research_{question.id_of_post}_{mode}.json"
     filepath = os.path.join(output_dir, filename)
 
     data = {
@@ -141,10 +141,12 @@ def print_summary(results: dict) -> None:
     print("\n" + "=" * 70)
     print("POSITION BIAS EXPERIMENT SUMMARY")
     print("=" * 70)
+    config = results.get("config", {})
     print(f"Question: {results['question_text'][:80]}...")
     print(f"Options (canonical order): {options}")
-    print(f"Model: {results['model']}")
-    print(f"Temperature: {results['temperature']}")
+    print(f"Model: {config.get('model', 'unknown')}")
+    print(f"Temperature: {config.get('temperature', 'unknown')}")
+    print(f"Offline: {config.get('offline', False)}")
     print(f"Total predictions: {len(predictions)}")
     print()
 
@@ -280,14 +282,14 @@ async def main():
     elif args.offline:
         question = get_mock_multiple_choice_question()
         # Reuse existing research if available
-        existing = find_existing_research(question.id_of_post, args.output_dir)
+        existing = find_existing_research(question.id_of_post, "mock", args.output_dir)
         if existing:
             _, research = load_research(existing)
             research_file_path = existing
             print(f"Reusing existing research from {existing}")
         else:
             research = get_mock_research()
-            research_file_path = save_research(question, research, "mock", args.output_dir)
+            research_file_path = save_research(question, research, "mock", "mock", args.output_dir)
         print(f"Using mock question: {question.question_text}")
 
     else:
@@ -302,7 +304,7 @@ async def main():
         print(f"Options: {question.options}")
 
         # Reuse existing research if available
-        existing = find_existing_research(question.id_of_post, args.output_dir)
+        existing = find_existing_research(question.id_of_post, "real", args.output_dir)
         if existing:
             _, research = load_research(existing)
             research_file_path = existing
@@ -321,7 +323,7 @@ async def main():
                 },
             )
             research = await bot_for_research.run_research(question)
-            research_file_path = save_research(question, research, args.model, args.output_dir)
+            research_file_path = save_research(question, research, args.model, "real", args.output_dir)
             print(f"Research saved to {research_file_path}")
 
     # --- Create bot for predictions ---
@@ -359,8 +361,7 @@ async def main():
         "question_url": question.page_url,
         "options": question.options,
         "research_file": research_file_path,
-        "model": args.model if not args.offline else "mock",
-        "temperature": args.temperature,
+        "config": vars(args),
         "predictions": predictions,
     }
 
