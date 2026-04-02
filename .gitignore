@@ -1,6 +1,7 @@
 ###  Specific to Project ###
 benchmarks/
 sandbox.py
+experiment_data/  # Local experiment output; in CI saved as workflow artifacts
 
 
 ### General gitignore ###
