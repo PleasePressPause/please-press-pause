@@ -46,15 +46,22 @@ from permutation import (
 dotenv.load_dotenv()
 logger = logging.getLogger(__name__)
 
-DEFAULT_QUESTION_URL = "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/"
+DEFAULT_QUESTION_URL = "https://www.metaculus.com/questions/34484/us-congress-control-after-2026-midterms/"
 
 
 # --- I/O helpers ---
 
+def find_existing_research(question_id: int, output_dir: str) -> str | None:
+    """Find an existing research file for the given question ID."""
+    filepath = os.path.join(output_dir, f"research_{question_id}.json")
+    if os.path.exists(filepath):
+        return filepath
+    return None
+
+
 def save_research(question: MultipleChoiceQuestion, research: str, researcher_config: str, output_dir: str) -> str:
     os.makedirs(output_dir, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"research_{question.id_of_post}_{timestamp}.json"
+    filename = f"research_{question.id_of_post}.json"
     filepath = os.path.join(output_dir, filename)
 
     data = {
@@ -272,8 +279,15 @@ async def main():
 
     elif args.offline:
         question = get_mock_multiple_choice_question()
-        research = get_mock_research()
-        research_file_path = save_research(question, research, "mock", args.output_dir)
+        # Reuse existing research if available
+        existing = find_existing_research(question.id_of_post, args.output_dir)
+        if existing:
+            _, research = load_research(existing)
+            research_file_path = existing
+            print(f"Reusing existing research from {existing}")
+        else:
+            research = get_mock_research()
+            research_file_path = save_research(question, research, "mock", args.output_dir)
         print(f"Using mock question: {question.question_text}")
 
     else:
@@ -286,22 +300,29 @@ async def main():
 
         print(f"Question: {question.question_text}")
         print(f"Options: {question.options}")
-        print(f"Running research...")
 
-        # Create bot for research
-        bot_for_research = SpringTemplateBot2026(
-            research_reports_per_question=1,
-            predictions_per_research_report=1,
-            publish_reports_to_metaculus=False,
-            llms={
-                "default": GeneralLlm(model=args.model, temperature=args.temperature, timeout=40, allowed_tries=2),
-                "researcher": "asknews/news-summaries",
-                "parser": "openai/gpt-4o-mini",
-            },
-        )
-        research = await bot_for_research.run_research(question)
-        research_file_path = save_research(question, research, "asknews/news-summaries", args.output_dir)
-        print(f"Research saved to {research_file_path}")
+        # Reuse existing research if available
+        existing = find_existing_research(question.id_of_post, args.output_dir)
+        if existing:
+            _, research = load_research(existing)
+            research_file_path = existing
+            print(f"Reusing existing research from {existing}")
+        else:
+            print(f"Running research...")
+            # Use the LLM as researcher (no asknews dependency)
+            bot_for_research = SpringTemplateBot2026(
+                research_reports_per_question=1,
+                predictions_per_research_report=1,
+                publish_reports_to_metaculus=False,
+                llms={
+                    "default": GeneralLlm(model=args.model, temperature=args.temperature, timeout=40, allowed_tries=2),
+                    "researcher": GeneralLlm(model=args.model, temperature=args.temperature, timeout=40, allowed_tries=2),
+                    "parser": GeneralLlm(model=args.model, temperature=args.temperature, timeout=40, allowed_tries=2),
+                },
+            )
+            research = await bot_for_research.run_research(question)
+            research_file_path = save_research(question, research, args.model, args.output_dir)
+            print(f"Research saved to {research_file_path}")
 
     # --- Create bot for predictions ---
     if args.offline:
@@ -317,7 +338,7 @@ async def main():
             publish_reports_to_metaculus=False,
             llms={
                 "default": GeneralLlm(model=args.model, temperature=args.temperature, timeout=40, allowed_tries=2),
-                "parser": "openai/gpt-4o-mini",
+                "parser": GeneralLlm(model=args.model, temperature=args.temperature, timeout=40, allowed_tries=2),
                 "researcher": "no_research",
             },
         )
