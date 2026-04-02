@@ -1,0 +1,167 @@
+{
+  "question_id": 99997,
+  "question_text": "Which color will win the contest?",
+  "question_url": "https://example.com/mock-mc-question",
+  "options": [
+    "Red",
+    "Blue",
+    "Green"
+  ],
+  "research_file": "experiment_data/research_99997_mock.json",
+  "config": {
+    "question_url": "https://www.metaculus.com/questions/34484/us-congress-control-after-2026-midterms/",
+    "research_file": null,
+    "append_to": null,
+    "reps": 1,
+    "model": "openrouter/openai/gpt-4o-mini",
+    "temperature": 0.1,
+    "output_dir": "experiment_data",
+    "offline": true
+  },
+  "predictions": [
+    {
+      "permutation": [
+        0,
+        1,
+        2
+      ],
+      "permuted_options": [
+        "Red",
+        "Blue",
+        "Green"
+      ],
+      "rep": 0,
+      "predictions_original_order": {
+        "Red": 0.5,
+        "Blue": 0.3,
+        "Green": 0.2
+      },
+      "predictions_presented_order": {
+        "Red": 0.5,
+        "Blue": 0.3,
+        "Green": 0.2
+      },
+      "reasoning": "\n(a) Time left: Several months until resolution.\n(b) Status quo outcome: Current trends favor the first option.\n(c) Unexpected scenario: External factors could shift probabilities.\n\nRationale: Weighting status quo while leaving probability mass on alternatives.\n"
+    },
+    {
+      "permutation": [
+        2,
+        1,
+        0
+      ],
+      "permuted_options": [
+        "Green",
+        "Blue",
+        "Red"
+      ],
+      "rep": 0,
+      "predictions_original_order": {
+        "Red": 0.2,
+        "Blue": 0.3,
+        "Green": 0.5
+      },
+      "predictions_presented_order": {
+        "Green": 0.5,
+        "Blue": 0.3,
+        "Red": 0.2
+      },
+      "reasoning": "\n(a) Time left: Several months until resolution.\n(b) Status quo outcome: Current trends favor the first option.\n(c) Unexpected scenario: External factors could shift probabilities.\n\nRationale: Weighting status quo while leaving probability mass on alternatives.\n"
+    },
+    {
+      "permutation": [
+        1,
+        2,
+        0
+      ],
+      "permuted_options": [
+        "Green",
+        "Red",
+        "Blue"
+      ],
+      "rep": 0,
+      "predictions_original_order": {
+        "Red": 0.3,
+        "Blue": 0.2,
+        "Green": 0.5
+      },
+      "predictions_presented_order": {
+        "Green": 0.5,
+        "Red": 0.3,
+        "Blue": 0.2
+      },
+      "reasoning": "\n(a) Time left: Several months until resolution.\n(b) Status quo outcome: Current trends favor the first option.\n(c) Unexpected scenario: External factors could shift probabilities.\n\nRationale: Weighting status quo while leaving probability mass on alternatives.\n"
+    },
+    {
+      "permutation": [
+        2,
+        0,
+        1
+      ],
+      "permuted_options": [
+        "Blue",
+        "Green",
+        "Red"
+      ],
+      "rep": 0,
+      "predictions_original_order": {
+        "Red": 0.2,
+        "Blue": 0.5,
+        "Green": 0.3
+      },
+      "predictions_presented_order": {
+        "Blue": 0.5,
+        "Green": 0.3,
+        "Red": 0.2
+      },
+      "reasoning": "\n(a) Time left: Several months until resolution.\n(b) Status quo outcome: Current trends favor the first option.\n(c) Unexpected scenario: External factors could shift probabilities.\n\nRationale: Weighting status quo while leaving probability mass on alternatives.\n"
+    },
+    {
+      "permutation": [
+        0,
+        2,
+        1
+      ],
+      "permuted_options": [
+        "Red",
+        "Green",
+        "Blue"
+      ],
+      "rep": 0,
+      "predictions_original_order": {
+        "Red": 0.5,
+        "Blue": 0.2,
+        "Green": 0.3
+      },
+      "predictions_presented_order": {
+        "Red": 0.5,
+        "Green": 0.3,
+        "Blue": 0.2
+      },
+      "reasoning": "\n(a) Time left: Several months until resolution.\n(b) Status quo outcome: Current trends favor the first option.\n(c) Unexpected scenario: External factors could shift probabilities.\n\nRationale: Weighting status quo while leaving probability mass on alternatives.\n"
+    },
+    {
+      "permutation": [
+        1,
+        0,
+        2
+      ],
+      "permuted_options": [
+        "Blue",
+        "Red",
+        "Green"
+      ],
+      "rep": 0,
+      "predictions_original_order": {
+        "Red": 0.3,
+        "Blue": 0.5,
+        "Green": 0.2
+      },
+      "predictions_presented_order": {
+        "Blue": 0.5,
+        "Red": 0.3,
+        "Green": 0.2
+      },
+      "reasoning": "\n(a) Time left: Several months until resolution.\n(b) Status quo outcome: Current trends favor the first option.\n(c) Unexpected scenario: External factors could shift probabilities.\n\nRationale: Weighting status quo while leaving probability mass on alternatives.\n"
+    }
+  ]
+}

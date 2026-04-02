@@ -1,0 +1,18 @@
+{
+  "question_url": "https://example.com/mock-mc-question",
+  "question_id": 99997,
+  "question_text": "Which color will win the contest?",
+  "options": [
+    "Red",
+    "Blue",
+    "Green"
+  ],
+  "background_info": "This is a mock multiple choice question for testing.",
+  "resolution_criteria": "Resolves to the winning color.",
+  "fine_print": "Mock question for testing purposes only.",
+  "research": "\n## Research Summary\n\nBased on available information:\n\n1. **Current Status**: The situation remains relatively stable with no major recent developments.\n\n2. **Recent News**: No significant breaking news that would dramatically shift expectations.\n\n3. **Expert Opinion**: Analysts remain divided, with most expecting continuation of current trends.\n\n4. **Key Factors to Watch**:\n   - Policy developments\n   - Economic indicators\n   - Technological progress\n\n5. **Historical Context**: Similar situations in the past have resolved in various ways.\n\nThis research provides context for the forecaster's analysis.\n",
+  "generated_at": "2026-04-02T18:18:31.445810+00:00",
+  "model_config": {
+    "researcher": "mock"
+  }
+}

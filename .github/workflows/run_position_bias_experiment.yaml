@@ -23,6 +23,10 @@ on:
         description: 'LLM temperature'
         required: false
         default: '0.1'
+      question_url:
+        description: 'Metaculus question URL (ignored in offline mode)'
+        required: false
+        default: 'https://www.metaculus.com/questions/34484/us-congress-control-after-2026-midterms/'
 
 concurrency:
   group: ${{ github.workflow }}
@@ -64,7 +68,8 @@ jobs:
             $OFFLINE_FLAG \
             --reps ${{ github.event.inputs.reps }} \
             --model "${{ github.event.inputs.model }}" \
-            --temperature ${{ github.event.inputs.temperature }}
+            --temperature ${{ github.event.inputs.temperature }} \
+            --question-url "${{ github.event.inputs.question_url }}"
         env:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
