@@ -28,11 +28,29 @@ jobs:
         env:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
         run: |
+          SLUG="metaculus-cup-spring-2026"
+
+          # Resolve numeric tournament ID from slug
+          tournament_json=$(curl -sf -H "Authorization: Token $METACULUS_TOKEN" \
+            "https://www.metaculus.com/api/projects/$SLUG/")
+          tournament_id=$(echo "$tournament_json" | jq '.id // empty')
+
+          if [ -z "$tournament_id" ]; then
+            echo "WARNING: Could not resolve tournament ID from slug '$SLUG'"
+            echo "API response: $tournament_json"
+            echo "has_questions=false" >> "$GITHUB_OUTPUT"
+            echo "question_count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Resolved slug '$SLUG' to tournament ID: $tournament_id"
+
           count=$(curl -sf -H "Authorization: Token $METACULUS_TOKEN" \
-            "https://www.metaculus.com/api/posts/?tournaments=metaculus-cup-spring-2026&statuses=open&limit=1&with_cp=true" \
+            "https://www.metaculus.com/api/posts/?tournaments=$tournament_id&statuses=open&limit=1&with_cp=true" \
             | jq '.count // 0')
-          echo "Metaculus Cup: $count open question(s)"
+          echo "Metaculus Cup ($tournament_id): $count open question(s)"
           echo "question_count=$count" >> "$GITHUB_OUTPUT"
+          echo "tournament_id=$tournament_id" >> "$GITHUB_OUTPUT"
           if [ "$count" -gt 0 ]; then
             echo "has_questions=true" >> "$GITHUB_OUTPUT"
           else
