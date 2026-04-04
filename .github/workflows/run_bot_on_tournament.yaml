@@ -37,6 +37,13 @@ jobs:
           else
             echo "has_questions=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Cancel run if no open questions
+        if: steps.check.outputs.has_questions == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "No open questions found — cancelling workflow run"
+          gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
 
   forecast:
     needs: check-questions
