@@ -871,22 +871,11 @@ if __name__ == "__main__":
         )
     elif run_mode == "metaculus_cup":
         # The Metaculus cup is a good way to test the bot's performance on regularly open questions.
-        # Resolve numeric ID from slug since the API may not support slug-based tournament filters.
-        import requests
+        # Try the slug first; the library passes it to ?tournaments= which may or may not work.
+        # If it returns 0 questions, fall back to the library's default numeric ID.
         cup_slug = "metaculus-cup-spring-2026"
-        try:
-            resp = requests.get(
-                f"https://www.metaculus.com/api/projects/{cup_slug}/",
-                headers={"Authorization": f"Token {os.environ['METACULUS_TOKEN']}"},
-                timeout=30,
-            )
-            resp.raise_for_status()
-            cup_id: str | int = resp.json()["id"]
-            logger.info(f"Resolved Metaculus Cup slug '{cup_slug}' to ID {cup_id}")
-        except Exception as e:
-            logger.warning(f"Could not resolve cup slug '{cup_slug}': {e}, falling back to library default")
-            cup_id = client.CURRENT_METACULUS_CUP_ID
-            logger.info(f"Using fallback Metaculus Cup ID: {cup_id}")
+        cup_id: str | int = cup_slug
+        logger.info(f"Trying Metaculus Cup with slug: {cup_slug}")
         template_bot.skip_previously_forecasted_questions = False
 
         open_questions_summary = {}
