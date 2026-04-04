@@ -36,4 +36,5 @@ poetry run python main.py --mode tournament --real --publish
 - Never commit `.env` or `github_app_auth.py` (contains user-specific paths)
 - GitHub tokens from `github_app_auth.py` expire quickly - run `poetry run python github_app_auth.py` and set the remote URL to authenticate. Do this proactively when you need to push.
 - Always run tests before creating PRs
+- Always checkout `main` and pull latest before creating a new branch/PR (`git checkout main && git pull`)
 - API credentials (METACULUS_TOKEN, OPENAI_API_KEY, etc.) are only available in GitHub Actions secrets, not locally. If you need to run something that requires credentials, create a GitHub workflow instead of trying to run it locally.
