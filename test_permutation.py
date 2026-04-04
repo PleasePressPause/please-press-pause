@@ -101,6 +101,10 @@ class TestPermutationSets:
         perms = PermutationSets.for_size(2)
         assert len(perms) == 20
 
+        # All should be valid permutations of [0, 1]
+        for p in perms:
+            assert sorted(p.forward) == [0, 1]
+
         # Should have 10 copies of identity and 10 copies of reversal
         identity_count = sum(1 for p in perms if p.forward == [0, 1])
         reversal_count = sum(1 for p in perms if p.forward == [1, 0])
@@ -111,6 +115,10 @@ class TestPermutationSets:
         """Three options: each of 6 permutations repeated 3 times = 18."""
         perms = PermutationSets.for_size(3)
         assert len(perms) == 18
+
+        # All should be valid permutations of [0, 1, 2]
+        for p in perms:
+            assert sorted(p.forward) == [0, 1, 2]
 
         # Should have 6 unique permutations, each appearing 3 times
         forwards = [tuple(p.forward) for p in perms]
