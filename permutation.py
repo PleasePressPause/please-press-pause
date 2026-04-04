@@ -5,7 +5,9 @@ This module provides tools for permuting options in multiple choice questions
 to reduce position bias in LLM predictions.
 """
 
+import random
 from dataclasses import dataclass
+from itertools import permutations as itertools_permutations
 from typing import TypeVar, Sequence, Callable, Awaitable
 from forecasting_tools import PredictedOption, PredictedOptionList
 
@@ -63,12 +65,7 @@ class PermutationSets:
     @staticmethod
     def for_size(n: int) -> list[Permutation]:
         """
-        Get a fixed set of standard permutations for n options.
-
-        These are carefully chosen permutation sets that:
-        - Include identity for baseline
-        - Include reversal
-        - For n>=3, include at least one non-self-inverse permutation
+        Get a set of permutations for n options designed to reduce position bias.
 
         Args:
             n: Number of options
@@ -81,59 +78,83 @@ class PermutationSets:
 
         if n == 2:
             return PermutationSets._for_2()
-
         if n == 3:
             return PermutationSets._for_3()
-
         if n == 4:
             return PermutationSets._for_4()
-
-        return PermutationSets._for_n(n)
+        if n == 5:
+            return PermutationSets._for_5()
+        if n == 6:
+            return PermutationSets._for_6()
+        return PermutationSets._for_large(n)
 
     @staticmethod
     def _for_2() -> list[Permutation]:
-        """Identity and reversal for 2 options."""
-        return [
-            Permutation.from_forward([0, 1]),  # identity
-            Permutation.from_forward([1, 0]),  # reversal
+        """Each of the 2 permutations repeated 10 times = 20 total."""
+        base = [
+            Permutation.from_forward([0, 1]),
+            Permutation.from_forward([1, 0]),
         ]
+        return [p for p in base for _ in range(10)]
 
     @staticmethod
     def _for_3() -> list[Permutation]:
-        """All 6 permutations for 3 options."""
-        return [
-            Permutation.from_forward([0, 1, 2]),  # identity
-            Permutation.from_forward([2, 1, 0]),  # reversal
-            Permutation.from_forward([1, 2, 0]),  # rotation (not self-inverse)
-            Permutation.from_forward([2, 0, 1]),  # rotation (not self-inverse)
-            Permutation.from_forward([0, 2, 1]),  # swap 1,2
-            Permutation.from_forward([1, 0, 2]),  # swap 0,1
+        """Each of the 6 permutations repeated 3 times = 18 total."""
+        base = [
+            Permutation.from_forward([0, 1, 2]),
+            Permutation.from_forward([2, 1, 0]),
+            Permutation.from_forward([1, 2, 0]),
+            Permutation.from_forward([2, 0, 1]),
+            Permutation.from_forward([0, 2, 1]),
+            Permutation.from_forward([1, 0, 2]),
         ]
+        return [p for p in base for _ in range(3)]
 
     @staticmethod
     def _for_4() -> list[Permutation]:
-        """
-        Fixed set for 4 options.
-
-        Uses: (1,2,3,4), (2,4,1,3), (3,1,4,2), (4,3,2,1) in 1-indexed
-        Which is: (0,1,2,3), (1,3,0,2), (2,0,3,1), (3,2,1,0) in 0-indexed
-        """
+        """All 24 permutations of [0,1,2,3], each used once."""
         return [
-            Permutation.from_forward([0, 1, 2, 3]),  # identity
-            Permutation.from_forward([1, 3, 0, 2]),  # not self-inverse
-            Permutation.from_forward([2, 0, 3, 1]),  # not self-inverse
-            Permutation.from_forward([3, 2, 1, 0]),  # reversal
+            Permutation.from_forward(list(p))
+            for p in itertools_permutations(range(4))
         ]
 
     @staticmethod
-    def _for_n(n: int) -> list[Permutation]:
-        """Identity, reversal, and rotations for n > 4 options."""
-        return [
-            Permutation.from_forward(list(range(n))),  # identity
-            Permutation.from_forward(list(range(n - 1, -1, -1))),  # reversal
-            Permutation.from_forward([(i + 1) % n for i in range(n)]),  # rotation by 1
-            Permutation.from_forward([(i + n // 2) % n for i in range(n)]),  # rotation by n//2
-        ]
+    def _for_5() -> list[Permutation]:
+        """
+        20 permutations defined by i -> i*a + b (mod 5).
+        a in {1,2,3,4}, b in {0,1,2,3,4}. Valid because 5 is prime.
+        """
+        perms = []
+        for a in range(1, 5):
+            for b in range(5):
+                forward = [(i * a + b) % 5 for i in range(5)]
+                perms.append(Permutation.from_forward(forward))
+        return perms
+
+    @staticmethod
+    def _for_6() -> list[Permutation]:
+        """
+        18 permutations defined by i -> ((i+1)*a mod 7) + b (mod 6).
+        a in {1,...,6}, b in {0,2,4}. Valid because 7 is prime.
+        """
+        perms = []
+        for a in range(1, 7):
+            for b in (0, 2, 4):
+                forward = [((i + 1) * a % 7 + b) % 6 for i in range(6)]
+                perms.append(Permutation.from_forward(forward))
+        return perms
+
+    @staticmethod
+    def _for_large(n: int) -> list[Permutation]:
+        """10 random permutations and their reverses = 20 total for n > 6."""
+        rng = random.Random(42)
+        perms = []
+        for _ in range(10):
+            forward = list(range(n))
+            rng.shuffle(forward)
+            perms.append(Permutation.from_forward(forward))
+            perms.append(Permutation.from_forward(forward[::-1]))
+        return perms
 
 
 # Convenience function for backwards compatibility

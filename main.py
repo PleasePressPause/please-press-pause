@@ -3,8 +3,9 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
+from typing import Literal, Sequence
+
 import dotenv
-from typing import Literal
 
 from mock_llm import (
     get_mock_binary_prediction,
@@ -136,6 +137,39 @@ class SpringTemplateBot2026(ForecastBot):
     )
     _concurrency_limiter = asyncio.Semaphore(_max_concurrent_questions)
     _structure_output_validation_samples = 2
+
+    ##################################### MC-ONLY FILTER #####################################
+
+    async def forecast_questions(
+        self,
+        questions: Sequence[MetaculusQuestion],
+        return_exceptions: bool = False,
+    ):
+        """Only forecast multiple choice questions, skip all other types."""
+        mc_questions = [q for q in questions if isinstance(q, MultipleChoiceQuestion)]
+        skipped = len(questions) - len(mc_questions)
+        if skipped:
+            logger.info(
+                f"Skipping {skipped} non-MultipleChoice question(s) (only forecasting MC)"
+            )
+        return await super().forecast_questions(mc_questions, return_exceptions)
+
+    ##################################### PERMUTATION ORCHESTRATION #####################################
+
+    async def _make_prediction(self, question, research):
+        """Wrap MC predictions with permutation orchestration for position bias reduction."""
+        if isinstance(question, MultipleChoiceQuestion):
+            original_options = question.options
+
+            async def predict_fn(permuted_options):
+                permuted_q = question.model_copy(update={"options": permuted_options})
+                result = await self._run_forecast_on_multiple_choice(permuted_q, research)
+                return result.prediction_value
+
+            averaged, log = await run_with_permutations(predict_fn, original_options)
+            reasoning = f"Averaged {len(log)} permutation runs for position bias reduction"
+            return ReasonedPrediction(prediction_value=averaged, reasoning=reasoning)
+        return await super()._make_prediction(question, research)
 
     ##################################### RESEARCH #####################################
 
@@ -765,25 +799,25 @@ if __name__ == "__main__":
 
     # Configure bot based on mode
     if use_real_llm:
-        # Real mode: use actual LLMs (minimal cost config unless --full)
+        # Real mode: Claude Opus 4.5 + AskNews (matching top tournament config)
         llm_config = {
             "default": GeneralLlm(
-                model="openrouter/openai/gpt-4o-mini",  # Cheaper model for testing
+                model="openrouter/anthropic/claude-opus-4.5",
                 temperature=0.3,
-                timeout=40,
+                timeout=120,
                 allowed_tries=2,
             ),
             "summarizer": "openai/gpt-4o-mini",
-            "researcher": "asknews/news-summaries" if use_research else "no_research",
+            "researcher": "asknews/news-summaries",
             "parser": "openai/gpt-4o-mini",
         }
-        logger.info("Using REAL LLMs (this will cost money!)")
+        logger.info("Using REAL LLMs (Claude Opus 4.5 + AskNews)")
         template_bot = SpringTemplateBot2026(
             research_reports_per_question=1,
-            predictions_per_research_report=predictions,
+            predictions_per_research_report=1,
             use_research_summary_to_forecast=False,
             publish_reports_to_metaculus=use_publish,
-            folder_to_save_reports_to=None,
+            folder_to_save_reports_to="reports",
             skip_previously_forecasted_questions=True,
             extra_metadata_in_explanation=True,
             llms=llm_config,

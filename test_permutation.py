@@ -97,70 +97,103 @@ class TestPermutationSets:
         assert perms[0].forward == [0]
 
     def test_for_size_n_equals_2(self):
-        """Two options should return identity and reversal."""
+        """Two options: each of 2 permutations repeated 10 times = 20."""
         perms = PermutationSets.for_size(2)
-        assert len(perms) == 2
-        assert perms[0].forward == [0, 1]  # identity
-        assert perms[1].forward == [1, 0]  # reversal
+        assert len(perms) == 20
+
+        # Should have 10 copies of identity and 10 copies of reversal
+        identity_count = sum(1 for p in perms if p.forward == [0, 1])
+        reversal_count = sum(1 for p in perms if p.forward == [1, 0])
+        assert identity_count == 10
+        assert reversal_count == 10
 
     def test_for_size_n_equals_3(self):
-        """Three options should return all 6 permutations."""
+        """Three options: each of 6 permutations repeated 3 times = 18."""
         perms = PermutationSets.for_size(3)
-        assert len(perms) == 6
+        assert len(perms) == 18
 
-        # Should include identity first
-        assert perms[0].is_identity()
+        # Should have 6 unique permutations, each appearing 3 times
+        forwards = [tuple(p.forward) for p in perms]
+        assert len(set(forwards)) == 6
+        for fwd in set(forwards):
+            assert forwards.count(fwd) == 3
 
-        # Should include reversal
-        assert any(p.forward == [2, 1, 0] for p in perms)
-
-        # Should include non-self-inverse permutations (rotations)
-        non_self_inverse = [p for p in perms if not p.is_self_inverse()]
-        assert len(non_self_inverse) >= 2
+    def test_for_size_n_equals_4(self):
+        """Four options: all 24 permutations, each used once."""
+        perms = PermutationSets.for_size(4)
+        assert len(perms) == 24
 
         # All should be unique
         forwards = [tuple(p.forward) for p in perms]
-        assert len(set(forwards)) == 6
+        assert len(set(forwards)) == 24
 
-    def test_for_size_n_equals_4(self):
-        """Four options should return the specified fixed set."""
-        perms = PermutationSets.for_size(4)
-        assert len(perms) == 4
+        # All should be valid permutations of [0,1,2,3]
+        for p in perms:
+            assert sorted(p.forward) == [0, 1, 2, 3]
 
-        # Check specific permutations as specified by reviewer
-        # (1,2,3,4), (2,4,1,3), (3,1,4,2), (4,3,2,1) in 1-indexed
-        # (0,1,2,3), (1,3,0,2), (2,0,3,1), (3,2,1,0) in 0-indexed
-        expected = [
-            [0, 1, 2, 3],  # identity
-            [1, 3, 0, 2],  # not self-inverse
-            [2, 0, 3, 1],  # not self-inverse
-            [3, 2, 1, 0],  # reversal
-        ]
-        for i, perm in enumerate(perms):
-            assert perm.forward == expected[i]
-
-        # Should include non-self-inverse permutations
-        non_self_inverse = [p for p in perms if not p.is_self_inverse()]
-        assert len(non_self_inverse) >= 1
-
-    def test_for_size_n_greater_than_4(self):
-        """n > 4 should return identity, reversal, and rotations."""
+    def test_for_size_n_equals_5(self):
+        """Five options: 20 permutations from i -> i*a+b (mod 5)."""
         perms = PermutationSets.for_size(5)
-        assert len(perms) == 4
+        assert len(perms) == 20
 
-        # First should be identity
-        assert perms[0].is_identity()
+        # All should be valid permutations of [0,1,2,3,4]
+        for p in perms:
+            assert sorted(p.forward) == [0, 1, 2, 3, 4]
 
-        # Second should be reversal
-        assert perms[1].forward == [4, 3, 2, 1, 0]
+        # All should be unique
+        forwards = [tuple(p.forward) for p in perms]
+        assert len(set(forwards)) == 20
 
-        # Should include rotations (non-self-inverse)
-        non_self_inverse = [p for p in perms if not p.is_self_inverse()]
-        assert len(non_self_inverse) >= 1
+        # Verify the formula: i -> i*a+b (mod 5) for a=1..4, b=0..4
+        idx = 0
+        for a in range(1, 5):
+            for b in range(5):
+                expected = [(i * a + b) % 5 for i in range(5)]
+                assert perms[idx].forward == expected
+                idx += 1
+
+    def test_for_size_n_equals_6(self):
+        """Six options: 18 permutations from i -> ((i+1)*a mod 7 + b) mod 6."""
+        perms = PermutationSets.for_size(6)
+        assert len(perms) == 18
+
+        # All should be valid permutations of [0,1,2,3,4,5]
+        for p in perms:
+            assert sorted(p.forward) == [0, 1, 2, 3, 4, 5]
+
+        # All should be unique
+        forwards = [tuple(p.forward) for p in perms]
+        assert len(set(forwards)) == 18
+
+        # Verify the formula
+        idx = 0
+        for a in range(1, 7):
+            for b in (0, 2, 4):
+                expected = [((i + 1) * a % 7 + b) % 6 for i in range(6)]
+                assert perms[idx].forward == expected
+                idx += 1
+
+    def test_for_size_n_greater_than_6(self):
+        """n > 6: 10 random permutations and their reverses = 20."""
+        perms = PermutationSets.for_size(8)
+        assert len(perms) == 20
+
+        # All should be valid permutations of [0,...,7]
+        for p in perms:
+            assert sorted(p.forward) == list(range(8))
+
+        # Every even-indexed perm should have its reverse at the next odd index
+        for i in range(0, 20, 2):
+            assert perms[i + 1].forward == perms[i].forward[::-1]
+
+        # Should be deterministic (seeded RNG)
+        perms2 = PermutationSets.for_size(8)
+        for i in range(20):
+            assert perms[i].forward == perms2[i].forward
 
     def test_convenience_function_matches_class(self):
         """get_standard_permutations should match PermutationSets.for_size."""
-        for n in [1, 2, 3, 4, 5]:
+        for n in [1, 2, 3, 4, 5, 6, 7]:
             from_function = get_standard_permutations(n)
             from_class = PermutationSets.for_size(n)
             assert len(from_function) == len(from_class)
@@ -414,8 +447,8 @@ class TestRunWithPermutations:
         names = [p.option_name for p in result.predicted_options]
         assert names == original_options
 
-        # Should have 4 log entries (standard permutations for n=4)
-        assert len(log) == 4
+        # Should have 24 log entries (all permutations for n=4)
+        assert len(log) == 24
 
         # Alpha should have highest prob (first alphabetically)
         probs = {p.option_name: p.probability for p in result.predicted_options}
@@ -494,12 +527,12 @@ class TestRunWithPermutations:
             original_options,
         )
 
-        # Should have 4 different orderings (standard permutations for n=4)
-        assert len(permutations_used) == 4
+        # Should have 24 different orderings (all permutations for n=4)
+        assert len(permutations_used) == 24
 
         # Check that we have diverse permutations (not all the same)
         unique_orderings = set(tuple(p) for p in permutations_used)
-        assert len(unique_orderings) == 4
+        assert len(unique_orderings) == 24
 
         # Should include identity (first)
         assert permutations_used[0] == original_options
@@ -587,8 +620,8 @@ class TestIntegrationPermutationWorkflow:
     """
 
     @pytest.mark.asyncio
-    async def test_three_options_six_calls(self):
-        """For 3 options, should make 6 prediction calls (all permutations)."""
+    async def test_three_options_eighteen_calls(self):
+        """For 3 options, should make 18 prediction calls (6 permutations x 3)."""
         original_options = ["Red", "Blue", "Green"]
         call_count = 0
         options_seen = []
@@ -615,11 +648,11 @@ class TestIntegrationPermutationWorkflow:
             original_options,
         )
 
-        # Should make exactly 6 calls (all permutations of 3)
-        assert call_count == 6
-        assert len(log) == 6
+        # Should make exactly 18 calls (6 permutations x 3 repetitions)
+        assert call_count == 18
+        assert len(log) == 18
 
-        # All 6 orderings should be unique
+        # All 6 unique orderings should appear
         unique_orderings = set(tuple(opts) for opts in options_seen)
         assert len(unique_orderings) == 6
 
@@ -629,17 +662,14 @@ class TestIntegrationPermutationWorkflow:
 
         # Since alphabetical mock assigns by name (not position),
         # all permutations give same probabilities, so average equals single run
-        # Blue (rank 0) -> 0.40/0.90 ≈ 0.444
-        # Green (rank 1) -> 0.30/0.90 ≈ 0.333
-        # Red (rank 2) -> 0.20/0.90 ≈ 0.222
         probs = {p.option_name: p.probability for p in result.predicted_options}
         assert probs['Blue'] == pytest.approx(0.444, rel=0.01)
         assert probs['Green'] == pytest.approx(0.333, rel=0.01)
         assert probs['Red'] == pytest.approx(0.222, rel=0.01)
 
     @pytest.mark.asyncio
-    async def test_four_options_four_calls(self):
-        """For 4 options, should make 4 prediction calls (fixed set)."""
+    async def test_four_options_twentyfour_calls(self):
+        """For 4 options, should make 24 prediction calls (all permutations)."""
         original_options = ["Alpha", "Beta", "Gamma", "Delta"]
         call_count = 0
 
@@ -662,9 +692,9 @@ class TestIntegrationPermutationWorkflow:
             original_options,
         )
 
-        # Should make exactly 4 calls (fixed set for n=4)
-        assert call_count == 4
-        assert len(log) == 4
+        # Should make exactly 24 calls (all permutations of 4)
+        assert call_count == 24
+        assert len(log) == 24
 
         # Verify expected probabilities (alphabetically: Alpha, Beta, Delta, Gamma)
         probs = {p.option_name: p.probability for p in result.predicted_options}
@@ -674,8 +704,8 @@ class TestIntegrationPermutationWorkflow:
         assert probs['Gamma'] == pytest.approx(0.10, rel=0.01)
 
     @pytest.mark.asyncio
-    async def test_two_options_two_calls(self):
-        """For 2 options, should make 2 prediction calls (identity + reversal)."""
+    async def test_two_options_twenty_calls(self):
+        """For 2 options, should make 20 prediction calls (2 permutations x 10)."""
         original_options = ["Yes", "No"]
         call_count = 0
         options_seen = []
@@ -702,9 +732,9 @@ class TestIntegrationPermutationWorkflow:
             original_options,
         )
 
-        # Should make exactly 2 calls
-        assert call_count == 2
-        assert len(log) == 2
+        # Should make exactly 20 calls (2 permutations x 10 repetitions)
+        assert call_count == 20
+        assert len(log) == 20
 
         # Should see both orderings
         assert ["Yes", "No"] in options_seen
@@ -738,8 +768,8 @@ class TestIntegrationPermutationWorkflow:
             original_options,
         )
 
-        # With 6 permutations and position bias:
-        # Each option appears in each position twice
+        # With 18 calls (6 unique permutations x 3 reps) and position bias:
+        # Each option appears in each position twice per 6 unique permutations
         # So each option gets: (0.80 + 0.80 + 0.15 + 0.15 + 0.05 + 0.05) / 6 = 0.333
         probs = {p.option_name: p.probability for p in result.predicted_options}
 
