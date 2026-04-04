@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import logging
 import os
+import sys
 from datetime import datetime, timezone
 from typing import Literal, Sequence
 
@@ -947,3 +948,14 @@ if __name__ == "__main__":
                 f.write(f"\n### ❌ {len(errors)} error(s)\n\n")
                 for err in errors:
                     f.write(f"- {err}\n")
+
+    # Exit with error if questions were found but no predictions made
+    if run_mode == "tournament":
+        total_open = sum(sum(c.values()) for c in open_questions_summary.values())
+        successful = [r for r in forecast_reports if not isinstance(r, BaseException)]
+        if total_open > 0 and len(successful) == 0:
+            logger.error(
+                f"Found {total_open} open question(s) but made 0 predictions. "
+                f"Question types: {open_questions_summary}"
+            )
+            sys.exit(1)
