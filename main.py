@@ -839,13 +839,15 @@ if __name__ == "__main__":
     if run_mode == "tournament":
         logger.info(f"Tournament IDs: AI={client.CURRENT_AI_COMPETITION_ID}, MiniBench={client.CURRENT_MINIBENCH_ID}")
 
-        # Log open questions before forecasting
+        # Log open questions before forecasting and track for summary
+        open_questions_summary: dict[str | int, dict[str, int]] = {}
         for tid in [client.CURRENT_AI_COMPETITION_ID, client.CURRENT_MINIBENCH_ID]:
             open_qs = client.get_all_open_questions_from_tournament(tid)
             type_counts: dict[str, int] = {}
             for q in open_qs:
                 tname = type(q).__name__
                 type_counts[tname] = type_counts.get(tname, 0) + 1
+            open_questions_summary[tid] = type_counts
             logger.info(f"Tournament {tid}: {len(open_qs)} open questions: {type_counts}")
             for q in open_qs:
                 logger.info(f"  [{type(q).__name__}] {q.page_url}")
@@ -918,3 +920,36 @@ if __name__ == "__main__":
             template_bot.forecast_questions(questions, return_exceptions=True)
         )
     template_bot.log_report_summary(forecast_reports)
+
+    # Write summary for GitHub Actions
+    summary_path = os.getenv("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        successful = [r for r in forecast_reports if not isinstance(r, BaseException)]
+        errors = [r for r in forecast_reports if isinstance(r, BaseException)]
+
+        with open(summary_path, "a") as f:
+            if run_mode == "tournament":
+                f.write("## Tournament Summary\n\n")
+                for tid, counts in open_questions_summary.items():
+                    total = sum(counts.values())
+                    if total == 0:
+                        f.write(f"**{tid}**: No open questions found\n\n")
+                    else:
+                        f.write(f"**{tid}**: {total} open questions — {counts}\n\n")
+
+            if successful:
+                f.write(f"### ✅ {len(successful)} prediction(s) made\n\n")
+                for report in successful:
+                    q = report.question
+                    f.write(f"- [{type(q).__name__}] {q.question_text[:80]}\n")
+            elif run_mode == "tournament" and all(
+                sum(c.values()) == 0 for c in open_questions_summary.values()
+            ):
+                f.write("### ⏭️ No open questions in any tournament\n")
+            else:
+                f.write("### ⚠️ No predictions made\n")
+
+            if errors:
+                f.write(f"\n### ❌ {len(errors)} error(s)\n\n")
+                for err in errors:
+                    f.write(f"- {err}\n")
