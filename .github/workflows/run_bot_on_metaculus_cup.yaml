@@ -2,6 +2,12 @@ name: Forecast on Metaculus Cup
 
 on:
   workflow_dispatch:
+    inputs:
+      max_questions:
+        description: 'Maximum number of questions to forecast (0 = no limit)'
+        required: false
+        default: '0'
+        type: string
   schedule:
     - cron: "0 0 */2 * *" # runs at midnight every 2 days
 
@@ -10,13 +16,42 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
-
-# Daily job to run the simple forecast bot
 jobs:
-  forecast_job:
-    runs-on: ubuntu-latest # determines the machine that will run the job - keep as is
-    steps: # sets up the steps that will be run in order
-      # setup repository with all necessary dependencies - keep as is
+  check-questions:
+    runs-on: ubuntu-latest
+    outputs:
+      has_questions: ${{ steps.check.outputs.has_questions }}
+      question_count: ${{ steps.check.outputs.question_count }}
+    steps:
+      - name: Check for open Metaculus Cup questions
+        id: check
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+        run: |
+          # Cup ID 32828 (fall 2025) - update when spring 2026 cup is available
+          count=$(curl -sf -H "Authorization: Token $METACULUS_TOKEN" \
+            "https://www.metaculus.com/api/posts/?tournaments=32828&statuses=open&limit=1&with_cp=true" \
+            | jq '.count // 0')
+          echo "Metaculus Cup: $count open question(s)"
+          echo "question_count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -gt 0 ]; then
+            echo "has_questions=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_questions=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Cancel run if no open questions
+        if: steps.check.outputs.has_questions == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "No open questions found — cancelling workflow run"
+          gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+
+  forecast:
+    needs: check-questions
+    if: needs.check-questions.outputs.has_questions == 'true'
+    runs-on: ubuntu-latest
+    steps:
       - name: Check out repository
         uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -32,11 +67,9 @@ jobs:
         run: poetry install --no-interaction --no-root
       - name: Run bot
         run: |
-          poetry run python main.py --mode metaculus_cup --real --publish
-        # this reads the environment variables from the github repository.
-        # Store under Settings --> Secrets and variables --> Actions
+          poetry run python main.py --mode metaculus_cup --real --publish --max-questions ${{ github.event.inputs.max_questions || '0' }}
         env:
-          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }} # replace this with the name of the variable under which you stored your own Metaculus token
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

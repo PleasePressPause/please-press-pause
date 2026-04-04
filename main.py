@@ -770,6 +770,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Enable research phase (in mock mode, uses mock research)",
     )
+    parser.add_argument(
+        "--max-questions",
+        type=int,
+        default=0,
+        help="Maximum number of questions to forecast (0 = no limit, default: 0)",
+    )
     args = parser.parse_args()
 
     # Check for USE_REAL_LLM environment variable
@@ -777,6 +783,7 @@ if __name__ == "__main__":
     use_publish = args.publish or os.getenv("PUBLISH_TO_METACULUS", "").lower() in ("true", "1", "yes")
     use_full = args.full or os.getenv("FULL_PREDICTIONS", "").lower() in ("true", "1", "yes")
     use_research = args.research or os.getenv("ENABLE_RESEARCH", "").lower() in ("true", "1", "yes")
+    max_questions = args.max_questions or int(os.getenv("MAX_QUESTIONS", "0"))
 
     # Safety check: can't publish without real LLM
     if use_publish and not use_real_llm:
@@ -855,17 +862,37 @@ if __name__ == "__main__":
                 logger.info(f"  [{type(q).__name__}] {q.page_url}")
             all_questions.extend(open_qs)
 
+        if max_questions > 0 and len(all_questions) > max_questions:
+            logger.info(f"Limiting to {max_questions} questions (from {len(all_questions)})")
+            all_questions = all_questions[:max_questions]
+
         forecast_reports = asyncio.run(
             template_bot.forecast_questions(all_questions, return_exceptions=True)
         )
     elif run_mode == "metaculus_cup":
-        # The Metaculus cup is a good way to test the bot's performance on regularly open questions. You can also use AXC_2025_TOURNAMENT_ID = 32564 or AI_2027_TOURNAMENT_ID = "ai-2027"
+        # The Metaculus cup is a good way to test the bot's performance on regularly open questions.
         # The Metaculus cup may not be initialized near the beginning of a season (i.e. January, May, September)
+        logger.info(f"Metaculus Cup ID: {client.CURRENT_METACULUS_CUP_ID}")
         template_bot.skip_previously_forecasted_questions = False
+
+        open_questions_summary = {}
+        tid = client.CURRENT_METACULUS_CUP_ID
+        open_qs = client.get_all_open_questions_from_tournament(tid)
+        type_counts: dict[str, int] = {}
+        for q in open_qs:
+            tname = type(q).__name__
+            type_counts[tname] = type_counts.get(tname, 0) + 1
+        open_questions_summary[tid] = type_counts
+        logger.info(f"Metaculus Cup: {len(open_qs)} open questions: {type_counts}")
+        for q in open_qs:
+            logger.info(f"  [{type(q).__name__}] {q.page_url}")
+
+        if max_questions > 0 and len(open_qs) > max_questions:
+            logger.info(f"Limiting to {max_questions} questions (from {len(open_qs)})")
+            open_qs = open_qs[:max_questions]
+
         forecast_reports = asyncio.run(
-            template_bot.forecast_on_tournament(
-                client.CURRENT_METACULUS_CUP_ID, return_exceptions=True
-            )
+            template_bot.forecast_questions(open_qs, return_exceptions=True)
         )
     elif run_mode == "test_questions":
         # Example questions for testing - by default only use 1 to minimize cost
@@ -918,29 +945,28 @@ if __name__ == "__main__":
 
     # Write summary for GitHub Actions
     summary_path = os.getenv("GITHUB_STEP_SUMMARY")
-    if summary_path:
+    if summary_path and run_mode in ("tournament", "metaculus_cup"):
         successful = [r for r in forecast_reports if not isinstance(r, BaseException)]
         errors = [r for r in forecast_reports if isinstance(r, BaseException)]
 
         with open(summary_path, "a") as f:
-            if run_mode == "tournament":
-                f.write("## Tournament Summary\n\n")
-                for tid, counts in open_questions_summary.items():
-                    total = sum(counts.values())
-                    if total == 0:
-                        f.write(f"**{tid}**: No open questions found\n\n")
-                    else:
-                        f.write(f"**{tid}**: {total} open questions — {counts}\n\n")
+            f.write("## Summary\n\n")
+            for tid, counts in open_questions_summary.items():
+                total = sum(counts.values())
+                if total == 0:
+                    f.write(f"**{tid}**: No open questions found\n\n")
+                else:
+                    f.write(f"**{tid}**: {total} open questions — {counts}\n\n")
 
             if successful:
                 f.write(f"### ✅ {len(successful)} prediction(s) made\n\n")
                 for report in successful:
                     q = report.question
                     f.write(f"- [{type(q).__name__}] {q.question_text[:80]}\n")
-            elif run_mode == "tournament" and all(
+            elif all(
                 sum(c.values()) == 0 for c in open_questions_summary.values()
             ):
-                f.write("### ⏭️ No open questions in any tournament\n")
+                f.write("### ⏭️ No open questions\n")
             else:
                 f.write("### ⚠️ No predictions made\n")
 
@@ -950,7 +976,7 @@ if __name__ == "__main__":
                     f.write(f"- {err}\n")
 
     # Exit with error if questions were found but no predictions made
-    if run_mode == "tournament":
+    if run_mode in ("tournament", "metaculus_cup"):
         total_open = sum(sum(c.values()) for c in open_questions_summary.values())
         successful = [r for r in forecast_reports if not isinstance(r, BaseException)]
         if total_open > 0 and len(successful) == 0:
