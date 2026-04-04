@@ -51,12 +51,49 @@ jobs:
           try:
               q = c.get_question_by_url('https://www.metaculus.com/questions/43053/which-of-the-following-best-describes-the-status-of-djiboutis-april-10-2026-presidential-election/')
               print(f'Type: {type(q).__name__}')
-              print(f'Status: {q.status}')
               print(f'Question: {q.question_text}')
-              if hasattr(q, 'tournaments'):
-                  print(f'Tournaments: {q.tournaments}')
-              if hasattr(q, 'projects'):
-                  print(f'Projects: {q.projects}')
+              print(f'State: {q.state}')
+              print(f'Open time: {q.open_time}')
+              print(f'Close time: {q.close_time}')
+              print(f'Tournament slugs: {q.tournament_slugs}')
+              print(f'Default project ID: {q.default_project_id}')
+              # Dump projects from raw API JSON
+              api = q.api_json
+              if 'projects' in api:
+                  print(f'API projects: {api[\"projects\"]}')
+              # Show all top-level keys
+              print(f'API JSON top-level keys: {list(api.keys())}')
           except Exception as e:
-              print(f'Error fetching question 43053: {e}')
+              import traceback
+              traceback.print_exc()
+
+          print()
+          print('=== Raw API call for tournament 32916 ===')
+          import requests, json
+          resp = requests.get(
+              'https://www.metaculus.com/api/posts/',
+              params={'tournaments': 32916, 'statuses': 'open', 'limit': 10, 'with_cp': 'true'},
+              headers={'Authorization': f'Token {c._auth_token}'},
+              timeout=30,
+          )
+          print(f'Status code: {resp.status_code}')
+          data = resp.json()
+          print(f'Count: {data.get(\"count\", \"N/A\")}')
+          print(f'Results count: {len(data.get(\"results\", []))}')
+          for r in data.get('results', [])[:5]:
+              print(f'  Post {r.get(\"id\")}: {r.get(\"title\", \"?\")[:80]}')
+          if data.get('count', 0) == 0:
+              # Try without status filter
+              print()
+              print('=== Raw API call for tournament 32916 (no status filter) ===')
+              resp2 = requests.get(
+                  'https://www.metaculus.com/api/posts/',
+                  params={'tournaments': 32916, 'limit': 10, 'with_cp': 'true'},
+                  headers={'Authorization': f'Token {c._auth_token}'},
+                  timeout=30,
+              )
+              data2 = resp2.json()
+              print(f'Count: {data2.get(\"count\", \"N/A\")}')
+              for r in data2.get('results', [])[:5]:
+                  print(f'  Post {r.get(\"id\")}: {r.get(\"title\", \"?\")[:80]} (status: {r.get(\"status\", \"?\")})')
           "
