@@ -839,8 +839,9 @@ if __name__ == "__main__":
     if run_mode == "tournament":
         logger.info(f"Tournament IDs: AI={client.CURRENT_AI_COMPETITION_ID}, MiniBench={client.CURRENT_MINIBENCH_ID}")
 
-        # Log open questions before forecasting and track for summary
+        # Fetch open questions once per tournament, log them, then forecast directly
         open_questions_summary: dict[str | int, dict[str, int]] = {}
+        all_questions: list[MetaculusQuestion] = []
         for tid in [client.CURRENT_AI_COMPETITION_ID, client.CURRENT_MINIBENCH_ID]:
             open_qs = client.get_all_open_questions_from_tournament(tid)
             type_counts: dict[str, int] = {}
@@ -851,18 +852,11 @@ if __name__ == "__main__":
             logger.info(f"Tournament {tid}: {len(open_qs)} open questions: {type_counts}")
             for q in open_qs:
                 logger.info(f"  [{type(q).__name__}] {q.page_url}")
+            all_questions.extend(open_qs)
 
-        seasonal_tournament_reports = asyncio.run(
-            template_bot.forecast_on_tournament(
-                client.CURRENT_AI_COMPETITION_ID, return_exceptions=True
-            )
+        forecast_reports = asyncio.run(
+            template_bot.forecast_questions(all_questions, return_exceptions=True)
         )
-        minibench_reports = asyncio.run(
-            template_bot.forecast_on_tournament(
-                client.CURRENT_MINIBENCH_ID, return_exceptions=True
-            )
-        )
-        forecast_reports = seasonal_tournament_reports + minibench_reports
     elif run_mode == "metaculus_cup":
         # The Metaculus cup is a good way to test the bot's performance on regularly open questions. You can also use AXC_2025_TOURNAMENT_ID = 32564 or AI_2027_TOURNAMENT_ID = "ai-2027"
         # The Metaculus cup may not be initialized near the beginning of a season (i.e. January, May, September)
