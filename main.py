@@ -871,12 +871,13 @@ if __name__ == "__main__":
         )
     elif run_mode == "metaculus_cup":
         # The Metaculus cup is a good way to test the bot's performance on regularly open questions.
-        # The Metaculus cup may not be initialized near the beginning of a season (i.e. January, May, September)
-        logger.info(f"Metaculus Cup ID: {client.CURRENT_METACULUS_CUP_ID}")
+        # Using slug directly since the library's CURRENT_METACULUS_CUP_ID may be stale.
+        cup_id: str | int = "metaculus-cup-spring-2026"
+        logger.info(f"Metaculus Cup ID: {cup_id}")
         template_bot.skip_previously_forecasted_questions = False
 
         open_questions_summary = {}
-        tid = client.CURRENT_METACULUS_CUP_ID
+        tid = cup_id
         open_qs = client.get_all_open_questions_from_tournament(tid)
         type_counts: dict[str, int] = {}
         for q in open_qs:

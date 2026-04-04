@@ -28,9 +28,8 @@ jobs:
         env:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
         run: |
-          # Cup ID 32828 (fall 2025) - update when spring 2026 cup is available
           count=$(curl -sf -H "Authorization: Token $METACULUS_TOKEN" \
-            "https://www.metaculus.com/api/posts/?tournaments=32828&statuses=open&limit=1&with_cp=true" \
+            "https://www.metaculus.com/api/posts/?tournaments=metaculus-cup-spring-2026&statuses=open&limit=1&with_cp=true" \
             | jq '.count // 0')
           echo "Metaculus Cup: $count open question(s)"
           echo "question_count=$count" >> "$GITHUB_OUTPUT"
