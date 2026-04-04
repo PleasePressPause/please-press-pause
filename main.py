@@ -837,7 +837,19 @@ if __name__ == "__main__":
 
     client = MetaculusClient()
     if run_mode == "tournament":
-        # You may want to change this to the specific tournament ID you want to forecast on
+        logger.info(f"Tournament IDs: AI={client.CURRENT_AI_COMPETITION_ID}, MiniBench={client.CURRENT_MINIBENCH_ID}")
+
+        # Log open questions before forecasting
+        for tid in [client.CURRENT_AI_COMPETITION_ID, client.CURRENT_MINIBENCH_ID]:
+            open_qs = client.get_all_open_questions_from_tournament(tid)
+            type_counts: dict[str, int] = {}
+            for q in open_qs:
+                tname = type(q).__name__
+                type_counts[tname] = type_counts.get(tname, 0) + 1
+            logger.info(f"Tournament {tid}: {len(open_qs)} open questions: {type_counts}")
+            for q in open_qs:
+                logger.info(f"  [{type(q).__name__}] {q.page_url}")
+
         seasonal_tournament_reports = asyncio.run(
             template_bot.forecast_on_tournament(
                 client.CURRENT_AI_COMPETITION_ID, return_exceptions=True
