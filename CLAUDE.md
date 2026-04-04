@@ -29,10 +29,12 @@ poetry run python main.py --mode tournament --real --publish
 
 **Position bias reduction**: The bot is unaware of permutation. An orchestration layer (`run_with_permutations()`) calls the predict function multiple times with different option orderings and averages the results. Keep these concerns separate.
 
-**GitHub App**: The `claude-code-assistant-ppp` app can create branches and PRs but cannot merge them - merging requires human approval via branch protection rules.
+**GitHub App**: The `claude-code-assistant-ppp` app can push branches and create PRs but cannot merge them - merging requires human approval via branch protection rules. To authenticate: run `poetry run python github_app_auth.py`, then set the remote URL with the token. The `gh` CLI is authenticated as `SuneKJakobsen` which is not a collaborator on the org repo, so use the app token with `gh api` REST calls to create PRs (not `gh pr create`).
 
 ## Gotchas
 
 - Never commit `.env` or `github_app_auth.py` (contains user-specific paths)
-- GitHub tokens from `github_app_auth.py` expire quickly - regenerate if git push fails with 401
+- GitHub tokens from `github_app_auth.py` expire quickly - run `poetry run python github_app_auth.py` and set the remote URL to authenticate. Do this proactively when you need to push.
 - Always run tests before creating PRs
+- Always checkout `main` and pull latest before creating a new branch/PR (`git checkout main && git pull`)
+- API credentials (METACULUS_TOKEN, OPENAI_API_KEY, etc.) are only available in GitHub Actions secrets, not locally. If you need to run something that requires credentials, create a GitHub workflow instead of trying to run it locally.

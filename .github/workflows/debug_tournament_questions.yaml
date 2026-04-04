@@ -1,0 +1,62 @@
+name: Debug tournament questions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+      - name: Debug tournament questions
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+        run: |
+          poetry run python -c "
+          from forecasting_tools import MetaculusClient, MultipleChoiceQuestion
+          c = MetaculusClient()
+
+          print('=== Tournament IDs ===')
+          print(f'CURRENT_AI_COMPETITION_ID: {c.CURRENT_AI_COMPETITION_ID}')
+          print(f'CURRENT_MINIBENCH_ID: {c.CURRENT_MINIBENCH_ID}')
+          print()
+
+          print('=== AI Competition ===')
+          q1 = c.get_all_open_questions_from_tournament(c.CURRENT_AI_COMPETITION_ID)
+          print(f'Total open questions: {len(q1)}')
+          for q in q1:
+              print(f'  [{type(q).__name__}] {q.page_url} - {q.question_text[:80]}')
+          print()
+
+          print('=== MiniBench ===')
+          q2 = c.get_all_open_questions_from_tournament(c.CURRENT_MINIBENCH_ID)
+          print(f'Total open questions: {len(q2)}')
+          for q in q2:
+              print(f'  [{type(q).__name__}] {q.page_url} - {q.question_text[:80]}')
+          print()
+
+          print('=== Checking specific question 43053 ===')
+          try:
+              q = c.get_question_by_url('https://www.metaculus.com/questions/43053/which-of-the-following-best-describes-the-status-of-djiboutis-april-10-2026-presidential-election/')
+              print(f'Type: {type(q).__name__}')
+              print(f'Status: {q.status}')
+              print(f'Question: {q.question_text}')
+              if hasattr(q, 'tournaments'):
+                  print(f'Tournaments: {q.tournaments}')
+              if hasattr(q, 'projects'):
+                  print(f'Projects: {q.projects}')
+          except Exception as e:
+              print(f'Error fetching question 43053: {e}')
+          "
