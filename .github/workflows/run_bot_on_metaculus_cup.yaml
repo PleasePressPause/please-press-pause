@@ -30,32 +30,57 @@ jobs:
         run: |
           SLUG="metaculus-cup-spring-2026"
 
-          # Resolve numeric tournament ID from slug by fetching any post from the tournament
-          # and extracting the tournament ID from its project metadata
+          # Step 1: Try slug directly with API
+          echo "=== Step 1: Try slug '$SLUG' directly ==="
           resolve_json=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
             "https://www.metaculus.com/api/posts/?tournaments=$SLUG&limit=1&with_cp=true")
+          echo "Response (first 500 chars): ${resolve_json:0:500}"
           count_with_slug=$(echo "$resolve_json" | jq '.count // 0')
+          echo "Count with slug: $count_with_slug"
 
           if [ "$count_with_slug" -gt 0 ]; then
-            # Slug works directly with the API
-            echo "Slug '$SLUG' works directly, found $count_with_slug total question(s)"
-            # Now check for open ones specifically
+            echo "Slug works directly"
             count=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
               "https://www.metaculus.com/api/posts/?tournaments=$SLUG&statuses=open&limit=1&with_cp=true" \
               | jq '.count // 0')
           else
-            # Slug didn't work - try to extract numeric ID from tournament page HTML
-            tournament_id=$(curl -s "https://www.metaculus.com/tournament/$SLUG/" \
-              | grep -oP '"id"\s*:\s*\K\d+' | head -1)
-            if [ -n "$tournament_id" ]; then
-              echo "Resolved slug '$SLUG' to tournament ID: $tournament_id"
-              count=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
-                "https://www.metaculus.com/api/posts/?tournaments=$tournament_id&statuses=open&limit=1&with_cp=true" \
+            # Step 2: Try fetching a known tournament question and extracting the cup ID from its projects
+            echo "=== Step 2: Try to find cup ID via known tournament question ==="
+            # Fetch a question from the main AI tournament and check if it's also in a cup
+            sample_json=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
+              "https://www.metaculus.com/api/posts/?tournaments=32916&limit=1&with_cp=true")
+            echo "Sample question projects:"
+            echo "$sample_json" | jq '.results[0].projects // empty'
+
+            # Step 3: Try common tournament ID patterns near known IDs
+            echo "=== Step 3: Brute-force check nearby tournament IDs ==="
+            for candidate_id in 32917 32918 32919 32920 32921 32922 32923 32924 32925; do
+              candidate_count=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
+                "https://www.metaculus.com/api/posts/?tournaments=$candidate_id&limit=1&with_cp=true" \
                 | jq '.count // 0')
-            else
-              echo "WARNING: Could not resolve tournament from slug '$SLUG'"
-              count=0
-            fi
+              if [ "$candidate_count" -gt 0 ]; then
+                # Get tournament name from first result's projects
+                name=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
+                  "https://www.metaculus.com/api/posts/?tournaments=$candidate_id&limit=1&with_cp=true" \
+                  | jq -r '.results[0].projects.tournament[]? | select(.id == '$candidate_id') | .name // empty')
+                echo "ID $candidate_id: $candidate_count questions (name: $name)"
+              fi
+            done
+
+            echo "=== Step 4: Check IDs in the 329xx range ==="
+            for candidate_id in $(seq 32826 32835); do
+              candidate_count=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
+                "https://www.metaculus.com/api/posts/?tournaments=$candidate_id&limit=1&with_cp=true" \
+                | jq '.count // 0')
+              if [ "$candidate_count" -gt 0 ]; then
+                name=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
+                  "https://www.metaculus.com/api/posts/?tournaments=$candidate_id&limit=1&with_cp=true" \
+                  | jq -r '.results[0].projects.tournament[]? | select(.id == '$candidate_id') | .name // empty')
+                echo "ID $candidate_id: $candidate_count questions (name: $name)"
+              fi
+            done
+
+            count=0
           fi
 
           echo "Metaculus Cup: $count open question(s)"
