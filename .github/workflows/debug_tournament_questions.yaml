@@ -91,7 +91,7 @@ jobs:
           for q in q1:
               print(f'  [{type(q).__name__}] {q.page_url}')
           "
-      - name: Check specific question 43053
+      - name: Check specific questions
         env:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
         run: |
@@ -101,10 +101,37 @@ jobs:
           token = os.environ['METACULUS_TOKEN']
           headers = {'Authorization': f'Token {token}'}
 
-          print('=== Raw API: post for question 43053 ===')
-          # Try fetching the post that contains this question
+          # Check the NOAA temperature question (43062) - known spring tournament MC question
+          for qid in [43062, 43053]:
+              print(f'=== Raw API: post containing question {qid} ===')
+              resp = requests.get(f'https://www.metaculus.com/api/posts/{qid}/', params={
+                  'with_cp': 'true'
+              }, headers=headers)
+              if resp.status_code == 200:
+                  post = resp.json()
+                  pid = post.get('id')
+                  title = post.get('title', '?')[:80]
+                  projects = post.get('projects', {})
+                  tournament_list = projects.get('tournament', [])
+                  tournament_ids = [(p.get('id'), p.get('slug', '?'), p.get('name', '?')[:40]) for p in tournament_list]
+                  print(f'  Post {pid}: title={title}')
+                  print(f'  Tournaments: {tournament_ids}')
+                  if 'question' in post and post['question']:
+                      q = post['question']
+                      print(f'  Question: type={q.get(\"type\")}, status={q.get(\"status\")}, id={q.get(\"id\")}')
+                      print(f'  Open: {q.get(\"open_time\")}, Close: {q.get(\"scheduled_close_time\")}')
+                  if 'group_of_questions' in post and post['group_of_questions']:
+                      g = post['group_of_questions']
+                      print(f'  Group with {len(g.get(\"questions\",[]))} sub-questions')
+                      for sq in g['questions']:
+                          print(f'    Sub {sq.get(\"id\")}: type={sq.get(\"type\")}, status={sq.get(\"status\")}')
+              else:
+                  print(f'  HTTP {resp.status_code}')
+              print()
+
+          print('=== Searching for NOAA question via tournament filter ===')
           resp = requests.get('https://www.metaculus.com/api/posts/', params={
-              'search': 'Djibouti', 'limit': 5, 'with_cp': 'true'
+              'search': 'NOAA temperature', 'limit': 5, 'with_cp': 'true'
           }, headers=headers)
           data = resp.json()
           print(f'Search results: {len(data.get(\"results\", []))}')
