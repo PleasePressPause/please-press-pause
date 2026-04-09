@@ -1,10 +1,13 @@
 import argparse
 import asyncio
+import json
 import logging
 import os
 import sys
 from datetime import datetime, timezone
 from typing import Literal, Sequence
+
+import requests
 
 import dotenv
 
@@ -53,6 +56,37 @@ from forecasting_tools import (
 
 dotenv.load_dotenv()
 logger = logging.getLogger(__name__)
+
+
+def _log_raw_tournament_questions(tournament_id: int | str) -> None:
+    """Make a raw API call to log what Metaculus actually returns for a tournament.
+    Useful for diagnosing when the forecasting_tools library returns 0 questions."""
+    token = os.environ.get("METACULUS_TOKEN", "")
+    if not token:
+        logger.warning("No METACULUS_TOKEN set, skipping raw API diagnostic")
+        return
+    url = "https://www.metaculus.com/api/posts/"
+    params = {
+        "tournaments": tournament_id,
+        "statuses": "open",
+        "limit": 10,
+        "with_cp": "true",
+    }
+    headers = {"Authorization": f"Token {token}"}
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=30)
+        data = resp.json()
+        count = data.get("count", "N/A")
+        results = data.get("results", [])
+        logger.info(f"Raw API for tournament {tournament_id}: status={resp.status_code}, count={count}, results_len={len(results)}")
+        for post in results:
+            post_id = post.get("id", "?")
+            title = post.get("title", "?")[:80]
+            post_type = post.get("question", {}).get("type", "?") if post.get("question") else "group/notebook"
+            has_notebook = "notebook" in post
+            logger.info(f"  Post {post_id}: type={post_type}, notebook={has_notebook}, title={title}")
+    except Exception as e:
+        logger.warning(f"Raw API diagnostic failed: {e}")
 
 
 class SpringTemplateBot2026(ForecastBot):
@@ -852,6 +886,8 @@ if __name__ == "__main__":
         all_questions: list[MetaculusQuestion] = []
         for tid in [client.CURRENT_AI_COMPETITION_ID, client.CURRENT_MINIBENCH_ID]:
             open_qs = client.get_all_open_questions_from_tournament(tid)
+            if len(open_qs) == 0:
+                _log_raw_tournament_questions(tid)
             type_counts: dict[str, int] = {}
             for q in open_qs:
                 tname = type(q).__name__
@@ -881,6 +917,8 @@ if __name__ == "__main__":
         open_questions_summary = {}
         tid = cup_id
         open_qs = client.get_all_open_questions_from_tournament(tid)
+        if len(open_qs) == 0:
+            _log_raw_tournament_questions(tid)
         type_counts: dict[str, int] = {}
         for q in open_qs:
             tname = type(q).__name__
