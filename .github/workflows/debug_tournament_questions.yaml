@@ -20,43 +20,108 @@ jobs:
           installer-parallel: true
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
-      - name: Debug tournament questions
+      - name: Debug tournament questions (raw API)
         env:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
         run: |
           poetry run python -c "
-          from forecasting_tools import MetaculusClient, MultipleChoiceQuestion
-          c = MetaculusClient()
+          import requests, json, os
 
-          print('=== Tournament IDs ===')
+          token = os.environ['METACULUS_TOKEN']
+          headers = {'Authorization': f'Token {token}'}
+          base = 'https://www.metaculus.com/api'
+
+          print('=== Raw API: tournament 32916, statuses=open ===')
+          resp = requests.get(f'{base}/posts/', params={
+              'tournaments': 32916, 'statuses': 'open', 'limit': 100, 'with_cp': 'true'
+          }, headers=headers)
+          data = resp.json()
+          print(f'Status: {resp.status_code}, count: {data.get(\"count\", \"N/A\")}, results: {len(data.get(\"results\", []))}')
+          for post in data.get('results', []):
+              pid = post.get('id')
+              title = post.get('title', '?')[:80]
+              has_notebook = 'notebook' in post
+              has_question = 'question' in post and post['question'] is not None
+              has_group = 'group_of_questions' in post and post['group_of_questions'] is not None
+              qtype = post.get('question', {}).get('type', 'N/A') if has_question else 'N/A'
+              nsub = len(post.get('group_of_questions', {}).get('questions', [])) if has_group else 0
+              print(f'  Post {pid}: notebook={has_notebook}, question={has_question}(type={qtype}), group={has_group}(subs={nsub}), title={title}')
+              if has_group:
+                  for sq in post['group_of_questions']['questions']:
+                      print(f'    Sub-question {sq.get(\"id\")}: type={sq.get(\"type\")}, status={sq.get(\"status\")}, title={sq.get(\"title\",\"?\")[:60]}')
+          print()
+
+          print('=== Raw API: tournament 32916, ALL statuses ===')
+          resp2 = requests.get(f'{base}/posts/', params={
+              'tournaments': 32916, 'limit': 100, 'with_cp': 'true'
+          }, headers=headers)
+          data2 = resp2.json()
+          print(f'Status: {resp2.status_code}, count: {data2.get(\"count\", \"N/A\")}, results: {len(data2.get(\"results\", []))}')
+          for post in data2.get('results', []):
+              pid = post.get('id')
+              title = post.get('title', '?')[:80]
+              has_notebook = 'notebook' in post
+              has_question = 'question' in post and post['question'] is not None
+              has_group = 'group_of_questions' in post and post['group_of_questions'] is not None
+              qtype = post.get('question', {}).get('type', 'N/A') if has_question else 'N/A'
+              status = post.get('question', {}).get('status', 'N/A') if has_question else 'N/A'
+              nsub = len(post.get('group_of_questions', {}).get('questions', [])) if has_group else 0
+              print(f'  Post {pid}: notebook={has_notebook}, question={has_question}(type={qtype}, status={status}), group={has_group}(subs={nsub}), title={title}')
+          print()
+
+          print('=== Raw API: minibench, statuses=open ===')
+          resp3 = requests.get(f'{base}/posts/', params={
+              'tournaments': 'minibench', 'statuses': 'open', 'limit': 100, 'with_cp': 'true'
+          }, headers=headers)
+          data3 = resp3.json()
+          print(f'Status: {resp3.status_code}, count: {data3.get(\"count\", \"N/A\")}, results: {len(data3.get(\"results\", []))}')
+          for post in data3.get('results', []):
+              pid = post.get('id')
+              title = post.get('title', '?')[:80]
+              print(f'  Post {pid}: title={title}')
+          print()
+
+          print('=== Library fetch ===')
+          from forecasting_tools import MetaculusClient
+          c = MetaculusClient()
           print(f'CURRENT_AI_COMPETITION_ID: {c.CURRENT_AI_COMPETITION_ID}')
           print(f'CURRENT_MINIBENCH_ID: {c.CURRENT_MINIBENCH_ID}')
-          print()
-
-          print('=== AI Competition ===')
           q1 = c.get_all_open_questions_from_tournament(c.CURRENT_AI_COMPETITION_ID)
-          print(f'Total open questions: {len(q1)}')
+          print(f'Library returned {len(q1)} questions for AI tournament')
           for q in q1:
-              print(f'  [{type(q).__name__}] {q.page_url} - {q.question_text[:80]}')
-          print()
+              print(f'  [{type(q).__name__}] {q.page_url}')
+          "
+      - name: Check specific question 43053
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+        run: |
+          poetry run python -c "
+          import requests, json, os
 
-          print('=== MiniBench ===')
-          q2 = c.get_all_open_questions_from_tournament(c.CURRENT_MINIBENCH_ID)
-          print(f'Total open questions: {len(q2)}')
-          for q in q2:
-              print(f'  [{type(q).__name__}] {q.page_url} - {q.question_text[:80]}')
-          print()
+          token = os.environ['METACULUS_TOKEN']
+          headers = {'Authorization': f'Token {token}'}
 
-          print('=== Checking specific question 43053 ===')
-          try:
-              q = c.get_question_by_url('https://www.metaculus.com/questions/43053/which-of-the-following-best-describes-the-status-of-djiboutis-april-10-2026-presidential-election/')
-              print(f'Type: {type(q).__name__}')
-              print(f'Status: {q.status}')
-              print(f'Question: {q.question_text}')
-              if hasattr(q, 'tournaments'):
-                  print(f'Tournaments: {q.tournaments}')
-              if hasattr(q, 'projects'):
-                  print(f'Projects: {q.projects}')
-          except Exception as e:
-              print(f'Error fetching question 43053: {e}')
+          print('=== Raw API: post for question 43053 ===')
+          # Try fetching the post that contains this question
+          resp = requests.get('https://www.metaculus.com/api/posts/', params={
+              'search': 'Djibouti', 'limit': 5, 'with_cp': 'true'
+          }, headers=headers)
+          data = resp.json()
+          print(f'Search results: {len(data.get(\"results\", []))}')
+          for post in data.get('results', []):
+              pid = post.get('id')
+              title = post.get('title', '?')[:80]
+              projects = post.get('projects', {})
+              tournament_ids = [p.get('id') for p in projects.get('tournament', [])] if 'tournament' in projects else []
+              print(f'  Post {pid}: title={title}')
+              print(f'    Tournament IDs: {tournament_ids}')
+              print(f'    Keys: {list(post.keys())[:15]}')
+              if 'question' in post and post['question']:
+                  q = post['question']
+                  print(f'    Question type={q.get(\"type\")}, status={q.get(\"status\")}, id={q.get(\"id\")}')
+              if 'group_of_questions' in post and post['group_of_questions']:
+                  g = post['group_of_questions']
+                  print(f'    Group with {len(g.get(\"questions\",[]))} sub-questions')
+                  for sq in g['questions']:
+                      print(f'      Sub {sq.get(\"id\")}: type={sq.get(\"type\")}, status={sq.get(\"status\")}')
           "
