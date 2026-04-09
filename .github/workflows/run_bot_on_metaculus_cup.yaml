@@ -23,73 +23,55 @@ jobs:
       has_questions: ${{ steps.check.outputs.has_questions }}
       question_count: ${{ steps.check.outputs.question_count }}
     steps:
-      - name: Check for open Metaculus Cup questions
+      - name: Debug Metaculus Cup tournament ID
         id: check
         env:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
         run: |
           SLUG="metaculus-cup-spring-2026"
+          AUTH="Authorization: Token $METACULUS_TOKEN"
 
-          # Step 1: Try slug directly with API
-          echo "=== Step 1: Try slug '$SLUG' directly ==="
-          resolve_json=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
+          echo "=== Try 1: ?tournaments=$SLUG (any status) ==="
+          resp=$(curl -s -H "$AUTH" \
             "https://www.metaculus.com/api/posts/?tournaments=$SLUG&limit=1&with_cp=true")
-          echo "Response (first 500 chars): ${resolve_json:0:500}"
-          count_with_slug=$(echo "$resolve_json" | jq '.count // 0')
-          echo "Count with slug: $count_with_slug"
+          echo "HTTP response (first 500 chars): ${resp:0:500}"
+          echo "Count: $(echo "$resp" | jq '.count // "N/A"')"
 
-          if [ "$count_with_slug" -gt 0 ]; then
-            echo "Slug works directly"
-            count=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
-              "https://www.metaculus.com/api/posts/?tournaments=$SLUG&statuses=open&limit=1&with_cp=true" \
-              | jq '.count // 0')
-          else
-            # Step 2: Try fetching a known tournament question and extracting the cup ID from its projects
-            echo "=== Step 2: Try to find cup ID via known tournament question ==="
-            # Fetch a question from the main AI tournament and check if it's also in a cup
-            sample_json=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
-              "https://www.metaculus.com/api/posts/?tournaments=32916&limit=1&with_cp=true")
-            echo "Sample question projects:"
-            echo "$sample_json" | jq '.results[0].projects // empty'
+          echo ""
+          echo "=== Try 2: ?project=$SLUG ==="
+          resp=$(curl -s -H "$AUTH" \
+            "https://www.metaculus.com/api/posts/?project=$SLUG&limit=1&with_cp=true")
+          echo "Count: $(echo "$resp" | jq '.count // "N/A"')"
 
-            # Step 3: Try common tournament ID patterns near known IDs
-            echo "=== Step 3: Brute-force check nearby tournament IDs ==="
-            for candidate_id in 32917 32918 32919 32920 32921 32922 32923 32924 32925; do
-              candidate_count=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
-                "https://www.metaculus.com/api/posts/?tournaments=$candidate_id&limit=1&with_cp=true" \
-                | jq '.count // 0')
-              if [ "$candidate_count" -gt 0 ]; then
-                # Get tournament name from first result's projects
-                name=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
-                  "https://www.metaculus.com/api/posts/?tournaments=$candidate_id&limit=1&with_cp=true" \
-                  | jq -r '.results[0].projects.tournament[]? | select(.id == '$candidate_id') | .name // empty')
-                echo "ID $candidate_id: $candidate_count questions (name: $name)"
-              fi
-            done
+          echo ""
+          echo "=== Try 3: /api/projects/ listing (search for 'cup') ==="
+          resp=$(curl -s -H "$AUTH" \
+            "https://www.metaculus.com/api/projects/?search=cup+spring+2026&limit=5")
+          echo "Response (first 1000 chars): ${resp:0:1000}"
 
-            echo "=== Step 4: Check IDs in the 329xx range ==="
-            for candidate_id in $(seq 32826 32835); do
-              candidate_count=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
-                "https://www.metaculus.com/api/posts/?tournaments=$candidate_id&limit=1&with_cp=true" \
-                | jq '.count // 0')
-              if [ "$candidate_count" -gt 0 ]; then
-                name=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
-                  "https://www.metaculus.com/api/posts/?tournaments=$candidate_id&limit=1&with_cp=true" \
-                  | jq -r '.results[0].projects.tournament[]? | select(.id == '$candidate_id') | .name // empty')
-                echo "ID $candidate_id: $candidate_count questions (name: $name)"
-              fi
-            done
+          echo ""
+          echo "=== Try 4: /api/tournaments/ endpoint ==="
+          resp=$(curl -s -H "$AUTH" \
+            "https://www.metaculus.com/api/tournaments/?search=cup&limit=5")
+          echo "Response (first 1000 chars): ${resp:0:1000}"
 
-            count=0
-          fi
+          echo ""
+          echo "=== Try 5: /api/projects/$SLUG/ ==="
+          resp=$(curl -s -H "$AUTH" \
+            "https://www.metaculus.com/api/projects/$SLUG/")
+          echo "Response (first 500 chars): ${resp:0:500}"
 
-          echo "Metaculus Cup: $count open question(s)"
-          echo "question_count=$count" >> "$GITHUB_OUTPUT"
-          if [ "$count" -gt 0 ]; then
-            echo "has_questions=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_questions=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo ""
+          echo "=== Try 6: Tournament page HTML for embedded data ==="
+          resp=$(curl -s "https://www.metaculus.com/tournament/$SLUG/")
+          # Look for JSON data containing tournament ID
+          echo "Page length: ${#resp} chars"
+          echo "Grep for 'metaculus-cup': $(echo "$resp" | grep -o '"slug":"metaculus-cup[^"]*"' | head -3)"
+          echo "Grep for tournament id: $(echo "$resp" | grep -oP '"id":\d+' | head -5)"
+
+          # Set outputs — this is a debug run, always say no questions
+          echo "has_questions=false" >> "$GITHUB_OUTPUT"
+          echo "question_count=0" >> "$GITHUB_OUTPUT"
       - name: Cancel run if no open questions
         if: steps.check.outputs.has_questions == 'false'
         env:
