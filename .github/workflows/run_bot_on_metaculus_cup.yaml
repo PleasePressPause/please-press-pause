@@ -31,9 +31,10 @@ jobs:
           SLUG="metaculus-cup-spring-2026"
 
           resp=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
-            "https://www.metaculus.com/api/posts/?tournaments=$SLUG&statuses=open&limit=1&with_cp=true")
-          count=$(echo "$resp" | jq 'if .count then .count else (.results | length) end // 0')
-          echo "Metaculus Cup ($SLUG): $count open question(s)"
+            "https://www.metaculus.com/api/posts/?tournaments=$SLUG&statuses=open&limit=100&with_cp=true")
+          # Count only actual questions (exclude notebook/announcement posts)
+          count=$(echo "$resp" | jq '[.results // [] | .[] | select(has("notebook") | not)] | length')
+          echo "Metaculus Cup ($SLUG): $count forecastable question(s)"
           echo "question_count=$count" >> "$GITHUB_OUTPUT"
           if [ "$count" -gt 0 ]; then
             echo "has_questions=true" >> "$GITHUB_OUTPUT"
