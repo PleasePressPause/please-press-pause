@@ -871,9 +871,11 @@ if __name__ == "__main__":
         )
     elif run_mode == "metaculus_cup":
         # The Metaculus cup is a good way to test the bot's performance on regularly open questions.
-        # Using slug directly since the library's CURRENT_METACULUS_CUP_ID may be stale.
-        cup_id: str | int = "metaculus-cup-spring-2026"
-        logger.info(f"Metaculus Cup ID: {cup_id}")
+        # Try the slug first; the library passes it to ?tournaments= which may or may not work.
+        # If it returns 0 questions, fall back to the library's default numeric ID.
+        cup_slug = "metaculus-cup-spring-2026"
+        cup_id: str | int = cup_slug
+        logger.info(f"Trying Metaculus Cup with slug: {cup_slug}")
         template_bot.skip_previously_forecasted_questions = False
 
         open_questions_summary = {}
