@@ -24,9 +24,9 @@ jobs:
         run: |
           total=0
           for tid in 32916 minibench; do
-            count=$(curl -sf -H "Authorization: Token $METACULUS_TOKEN" \
-              "https://www.metaculus.com/api/posts/?tournaments=$tid&statuses=open&limit=1&with_cp=true" \
-              | jq '.count // 0')
+            resp=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
+              "https://www.metaculus.com/api/posts/?tournaments=$tid&statuses=open&limit=1&with_cp=true")
+            count=$(echo "$resp" | jq 'if .count then .count else (.results | length) end // 0')
             echo "Tournament $tid: $count open question(s)"
             total=$((total + count))
           done

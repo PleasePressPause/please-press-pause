@@ -23,55 +23,25 @@ jobs:
       has_questions: ${{ steps.check.outputs.has_questions }}
       question_count: ${{ steps.check.outputs.question_count }}
     steps:
-      - name: Debug Metaculus Cup tournament ID
+      - name: Check for open Metaculus Cup questions
         id: check
         env:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
         run: |
           SLUG="metaculus-cup-spring-2026"
-          AUTH="Authorization: Token $METACULUS_TOKEN"
 
-          echo "=== Try 1: ?tournaments=$SLUG (any status) ==="
-          resp=$(curl -s -H "$AUTH" \
-            "https://www.metaculus.com/api/posts/?tournaments=$SLUG&limit=1&with_cp=true")
-          echo "HTTP response (first 500 chars): ${resp:0:500}"
-          echo "Count: $(echo "$resp" | jq '.count // "N/A"')"
-
-          echo ""
-          echo "=== Try 2: ?project=$SLUG ==="
-          resp=$(curl -s -H "$AUTH" \
-            "https://www.metaculus.com/api/posts/?project=$SLUG&limit=1&with_cp=true")
-          echo "Count: $(echo "$resp" | jq '.count // "N/A"')"
-
-          echo ""
-          echo "=== Try 3: /api/projects/ listing (search for 'cup') ==="
-          resp=$(curl -s -H "$AUTH" \
-            "https://www.metaculus.com/api/projects/?search=cup+spring+2026&limit=5")
-          echo "Response (first 1000 chars): ${resp:0:1000}"
-
-          echo ""
-          echo "=== Try 4: /api/tournaments/ endpoint ==="
-          resp=$(curl -s -H "$AUTH" \
-            "https://www.metaculus.com/api/tournaments/?search=cup&limit=5")
-          echo "Response (first 1000 chars): ${resp:0:1000}"
-
-          echo ""
-          echo "=== Try 5: /api/projects/$SLUG/ ==="
-          resp=$(curl -s -H "$AUTH" \
-            "https://www.metaculus.com/api/projects/$SLUG/")
-          echo "Response (first 500 chars): ${resp:0:500}"
-
-          echo ""
-          echo "=== Try 6: Tournament page HTML for embedded data ==="
-          resp=$(curl -s "https://www.metaculus.com/tournament/$SLUG/")
-          # Look for JSON data containing tournament ID
-          echo "Page length: ${#resp} chars"
-          echo "Grep for 'metaculus-cup': $(echo "$resp" | grep -o '"slug":"metaculus-cup[^"]*"' | head -3)"
-          echo "Grep for tournament id: $(echo "$resp" | grep -oP '"id":\d+' | head -5)"
-
-          # Set outputs — this is a debug run, always say no questions
-          echo "has_questions=false" >> "$GITHUB_OUTPUT"
-          echo "question_count=0" >> "$GITHUB_OUTPUT"
+          # The API returns {next, previous, results} without a top-level 'count' for slug-based queries.
+          # Check results array length instead.
+          count=$(curl -s -H "Authorization: Token $METACULUS_TOKEN" \
+            "https://www.metaculus.com/api/posts/?tournaments=$SLUG&statuses=open&limit=1&with_cp=true" \
+            | jq '.results | length // 0')
+          echo "Metaculus Cup ($SLUG): $count open question(s)"
+          echo "question_count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -gt 0 ]; then
+            echo "has_questions=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_questions=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Cancel run if no open questions
         if: steps.check.outputs.has_questions == 'false'
         env:
